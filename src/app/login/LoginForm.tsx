@@ -13,7 +13,9 @@ import { SITE_URL } from "@/lib/config";
 // one-time link; clicking it registers + logs in + verifies the email at once.
 export default function LoginForm() {
   const params = useSearchParams();
-  const next = params.get("next") ?? "/jobs";
+  const nextParam = params.get("next");
+  const next = nextParam ?? "/jobs";
+  const cameFromAction = Boolean(nextParam);
   const initialError = params.get("error");
 
   const [email, setEmail] = useState("");
@@ -63,9 +65,16 @@ export default function LoginForm() {
     <div className="mx-auto max-w-md px-4 py-12">
       <h1 className="text-2xl font-bold text-slate-900">Sign in to apply</h1>
       <p className="mt-2 text-slate-600">
-        Enter your email and we&apos;ll send you a secure sign-in link. First time?
-        This also creates your account.
+        Applying is free — we just verify your email first. No password needed:
+        enter your email and click the link we send. This keeps applications
+        genuine and prevents duplicate submissions.
       </p>
+      {cameFromAction && (
+        <p className="mt-3 rounded-lg bg-cyan-50 px-4 py-3 text-sm text-cyan-800">
+          You&apos;ll be taken back to continue your application once you&apos;re
+          signed in.
+        </p>
+      )}
 
       {!configured && (
         <p className="mt-6 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">

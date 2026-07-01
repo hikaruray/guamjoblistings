@@ -13,7 +13,9 @@ import {
 export default function EmployerLoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") ?? "/employer/dashboard";
+  const nextParam = params.get("next");
+  const next = nextParam ?? "/employer/dashboard";
+  const cameFromAction = Boolean(nextParam);
 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +51,15 @@ export default function EmployerLoginForm() {
     <div className="mx-auto max-w-md px-4 py-12">
       <h1 className="text-2xl font-bold text-slate-900">Employer sign in</h1>
       <p className="mt-2 text-slate-600">
-        Sign in to post and manage your job listings.
+        Posting jobs is free — we just ask employers to keep a verified account
+        so every listing stays trustworthy for local job seekers. Sign in to
+        post and manage your listings.
       </p>
+      {cameFromAction && (
+        <p className="mt-3 rounded-lg bg-cyan-50 px-4 py-3 text-sm text-cyan-800">
+          You&apos;ll be taken back to continue once you&apos;re signed in.
+        </p>
+      )}
 
       {!configured && (
         <p className="mt-6 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">

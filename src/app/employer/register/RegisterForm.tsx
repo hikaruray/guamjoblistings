@@ -82,7 +82,9 @@ export default function RegisterForm() {
     <div className="mx-auto max-w-md px-4 py-12">
       <h1 className="text-2xl font-bold text-slate-900">Create an employer account</h1>
       <p className="mt-2 text-slate-600">
-        Post jobs and reach local talent across Guam. It&apos;s free to start.
+        Post jobs and reach local talent across Guam. It&apos;s free to start —
+        we just verify your email so every listing stays trustworthy for job
+        seekers. After you confirm your email, you can post right away.
       </p>
 
       {!configured && (
