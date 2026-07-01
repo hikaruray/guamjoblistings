@@ -26,6 +26,7 @@ export interface StoredApplication {
   email: string;
   phone: string;
   message: string;
+  userId?: string | null; // applicant's auth user id (null for legacy/anon)
   createdAt: string;
 }
 
@@ -40,6 +41,7 @@ export interface PendingJob {
   email: string;
   description: string;
   status: "pending" | "approved" | "rejected";
+  userId?: string | null; // posting employer's auth user id (null for legacy/anon)
   createdAt: string;
 }
 
@@ -57,6 +59,7 @@ function rowToApplication(row: Record<string, unknown>): StoredApplication {
     email: String(row.email),
     phone: String(row.phone),
     message: (row.message as string) ?? "",
+    userId: (row.user_id as string) ?? null,
     createdAt: String(row.created_at),
   };
 }
@@ -73,6 +76,7 @@ function rowToPendingJob(row: Record<string, unknown>): PendingJob {
     email: String(row.email),
     description: String(row.description),
     status: row.status as PendingJob["status"],
+    userId: (row.user_id as string) ?? null,
     createdAt: String(row.created_at),
   };
 }
@@ -125,6 +129,7 @@ export async function addApplication(
       email: data.email,
       phone: data.phone,
       message: data.message,
+      user_id: data.userId ?? null,
     });
     if (error) throw new Error(`Failed to save application: ${error.message}`);
     return;
@@ -154,6 +159,30 @@ export async function listApplications(): Promise<StoredApplication[]> {
   return (await readFile()).applications;
 }
 
+// Returns true if this user has already applied to this job (dedupe guard).
+export async function hasApplied(
+  jobId: string,
+  userId: string,
+): Promise<boolean> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("applications")
+      .select("id")
+      .eq("job_id", jobId)
+      .eq("user_id", userId)
+      .limit(1);
+    if (error) throw new Error(`Failed to check application: ${error.message}`);
+    return (data ?? []).length > 0;
+  }
+
+  const db = await readFile();
+  return db.applications.some(
+    (a) => a.jobId === jobId && a.userId === userId,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Pending job submissions
 // ---------------------------------------------------------------------------
@@ -174,6 +203,7 @@ export async function addPendingJob(
       email: data.email,
       description: data.description,
       status: "pending",
+      user_id: data.userId ?? null,
     });
     if (error) throw new Error(`Failed to save job submission: ${error.message}`);
     return;
@@ -223,4 +253,21 @@ export async function setJobStatus(
   const job = db.pendingJobs.find((j) => j.id === jobId);
   if (job) job.status = status;
   await writeFile(db);
+}
+
+// Jobs posted by a specific employer (for their dashboard).
+export async function listJobsByUser(userId: string): Promise<PendingJob[]> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(`Failed to load your jobs: ${error.message}`);
+    return (data ?? []).map(rowToPendingJob);
+  }
+
+  return (await readFile()).pendingJobs.filter((j) => j.userId === userId);
 }

@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { FROM_EMAIL, OWNER_COPY_EMAIL } from "@/lib/config";
 import { addPendingJob } from "@/lib/store";
+import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
 
 export async function POST(request: Request) {
   let body: Record<string, string>;
@@ -21,6 +22,20 @@ export async function POST(request: Request) {
     );
   }
 
+  // When auth is configured, require a signed-in employer and tag the posting
+  // with their user id. (Local dev without Supabase stays open.)
+  let userId: string | null = null;
+  if (isAuthConfigured()) {
+    const user = await getSessionUser();
+    if (!user) {
+      return Response.json(
+        { error: "Please sign in as an employer to post a job." },
+        { status: 401 },
+      );
+    }
+    userId = user.id;
+  }
+
   // Save to the Admin review queue (pre-publish check).
   try {
     await addPendingJob({
@@ -32,6 +47,7 @@ export async function POST(request: Request) {
       salary,
       email,
       description,
+      userId,
     });
   } catch (err) {
     console.error("Failed to save job submission:", err);

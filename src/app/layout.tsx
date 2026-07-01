@@ -48,12 +48,18 @@ export default function RootLayout({
                 Guam<span className="text-cyan-600">Jobs</span>
               </span>
             </Link>
-            <nav className="flex items-center gap-1 text-sm font-medium sm:gap-4">
+            <nav className="flex items-center gap-1 text-sm font-medium sm:gap-3">
               <Link
                 href="/jobs"
                 className="rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               >
                 Browse Jobs
+              </Link>
+              <Link
+                href="/employer/login"
+                className="hidden rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 sm:block"
+              >
+                Employers
               </Link>
               <Link
                 href="/post-a-job"

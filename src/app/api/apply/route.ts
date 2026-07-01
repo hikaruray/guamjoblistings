@@ -1,7 +1,8 @@
 import { Resend } from "resend";
 import { getPublicJob } from "@/lib/public-jobs";
 import { FROM_EMAIL, OWNER_COPY_EMAIL } from "@/lib/config";
-import { addApplication } from "@/lib/store";
+import { addApplication, hasApplied } from "@/lib/store";
+import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
 
 export async function POST(request: Request) {
   let body: {
@@ -32,6 +33,32 @@ export async function POST(request: Request) {
     return Response.json({ error: "Job not found." }, { status: 404 });
   }
 
+  // When auth is configured, require a signed-in applicant and dedupe by user.
+  // (Local dev without Supabase stays anonymous so development isn't blocked.)
+  let userId: string | null = null;
+  if (isAuthConfigured()) {
+    const user = await getSessionUser();
+    if (!user) {
+      return Response.json(
+        { error: "Please sign in to apply." },
+        { status: 401 },
+      );
+    }
+    userId = user.id;
+
+    try {
+      if (await hasApplied(jobId, userId)) {
+        return Response.json(
+          { error: "You have already applied to this job." },
+          { status: 409 },
+        );
+      }
+    } catch (err) {
+      console.error("Failed to check for duplicate application:", err);
+      // Non-fatal: fall through and let the insert's unique index guard it.
+    }
+  }
+
   // Save to the Admin dashboard store (record of every application).
   try {
     await addApplication({
@@ -42,6 +69,7 @@ export async function POST(request: Request) {
       email,
       phone,
       message: message?.trim() ?? "",
+      userId,
     });
   } catch (err) {
     console.error("Failed to save application:", err);
