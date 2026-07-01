@@ -41,9 +41,16 @@ function mapApproved(job: PendingJob): Job {
 }
 
 export async function getPublicJobs(): Promise<Job[]> {
-  const approved = (await listPendingJobs())
-    .filter((j) => j.status === "approved")
-    .map(mapApproved);
+  let approved: Job[] = [];
+  try {
+    approved = (await listPendingJobs())
+      .filter((j) => j.status === "approved")
+      .map(mapApproved);
+  } catch (err) {
+    // If the store (e.g. Supabase) is unreachable, still show the seed jobs so
+    // the public site never goes fully down over a transient read failure.
+    console.error("Failed to load approved job submissions:", err);
+  }
   // Newest approved submissions first, then the seed jobs.
   return [...approved, ...JOBS];
 }

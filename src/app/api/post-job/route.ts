@@ -22,16 +22,24 @@ export async function POST(request: Request) {
   }
 
   // Save to the Admin review queue (pre-publish check).
-  await addPendingJob({
-    title,
-    company,
-    location,
-    category,
-    jobType,
-    salary,
-    email,
-    description,
-  });
+  try {
+    await addPendingJob({
+      title,
+      company,
+      location,
+      category,
+      jobType,
+      salary,
+      email,
+      description,
+    });
+  } catch (err) {
+    console.error("Failed to save job submission:", err);
+    return Response.json(
+      { error: "Could not submit your job. Please try again." },
+      { status: 503 },
+    );
+  }
 
   const subject = `New job submission: ${title} — ${company}`;
   const text = [

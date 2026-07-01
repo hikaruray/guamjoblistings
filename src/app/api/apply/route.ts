@@ -33,15 +33,23 @@ export async function POST(request: Request) {
   }
 
   // Save to the Admin dashboard store (record of every application).
-  await addApplication({
-    jobId,
-    jobTitle: job.title,
-    company: job.company,
-    name,
-    email,
-    phone,
-    message: message?.trim() ?? "",
-  });
+  try {
+    await addApplication({
+      jobId,
+      jobTitle: job.title,
+      company: job.company,
+      name,
+      email,
+      phone,
+      message: message?.trim() ?? "",
+    });
+  } catch (err) {
+    console.error("Failed to save application:", err);
+    return Response.json(
+      { error: "Could not submit your application. Please try again." },
+      { status: 503 },
+    );
+  }
 
   const subject = `New application: ${job.title} — ${name}`;
   const text = [

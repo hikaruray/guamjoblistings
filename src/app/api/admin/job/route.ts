@@ -16,6 +16,14 @@ export async function POST(request: Request) {
     return Response.json({ error: "Bad parameters." }, { status: 400 });
   }
 
-  await setJobStatus(id, action === "approve" ? "approved" : "rejected");
+  try {
+    await setJobStatus(id, action === "approve" ? "approved" : "rejected");
+  } catch (err) {
+    console.error("Failed to update job status:", err);
+    return Response.json(
+      { error: "Could not update the job. Please try again." },
+      { status: 503 },
+    );
+  }
   return Response.json({ ok: true });
 }
