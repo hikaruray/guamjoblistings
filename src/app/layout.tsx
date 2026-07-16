@@ -56,6 +56,12 @@ export default function RootLayout({
                 Browse Jobs
               </Link>
               <Link
+                href="/my/applications"
+                className="hidden rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 sm:block"
+              >
+                My Applications
+              </Link>
+              <Link
                 href="/employer/login"
                 className="hidden rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 sm:block"
               >
@@ -79,6 +85,17 @@ export default function RootLayout({
               <div>
                 <p className="font-semibold text-slate-700">🌴 Guam Job Listings</p>
                 <p className="mt-1">Connecting local talent with island employers.</p>
+                <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                  <Link href="/jobs" className="hover:text-slate-700">
+                    Browse Jobs
+                  </Link>
+                  <Link href="/my/applications" className="hover:text-slate-700">
+                    My Applications
+                  </Link>
+                  <Link href="/employer/login" className="hover:text-slate-700">
+                    Employers
+                  </Link>
+                </p>
               </div>
               <p>© {new Date().getFullYear()} Guam Job Listings. All rights reserved.</p>
             </div>

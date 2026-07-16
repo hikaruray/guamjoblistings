@@ -54,15 +54,27 @@ export default function ApplyForm({
           </h1>
           <p className="mt-2 text-slate-600">
             Your application for <strong>{jobTitle}</strong> at{" "}
-            <strong>{company}</strong>{" "}has been submitted. The employer will
-            contact you directly if you&apos;re a match. Good luck! 🌴
+            <strong>{company}</strong> has been submitted — we&apos;ve emailed
+            you a copy for your records.
           </p>
-          <Link
-            href="/jobs"
-            className="mt-6 inline-block rounded-lg bg-cyan-600 px-6 py-3 font-semibold text-white transition hover:bg-cyan-700"
-          >
-            Browse more jobs
-          </Link>
+          <p className="mt-2 text-sm text-slate-500">
+            {company} will contact you directly if you&apos;re a match.
+            Employers usually reply within about a week. Good luck! 🌴
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <Link
+              href="/my/applications"
+              className="rounded-lg bg-cyan-600 px-6 py-3 font-semibold text-white transition hover:bg-cyan-700"
+            >
+              View my applications
+            </Link>
+            <Link
+              href="/jobs"
+              className="rounded-lg border border-slate-300 bg-white px-6 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              Browse more jobs
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -123,6 +135,10 @@ export default function ApplyForm({
         >
           {sending ? "Sending..." : "Submit Application"}
         </button>
+        <p className="text-center text-xs text-slate-400">
+          Your name, email and phone are sent directly to {company}, who will
+          contact you if you&apos;re a match. We&apos;ll email you a copy.
+        </p>
       </form>
     </div>
   );

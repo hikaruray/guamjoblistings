@@ -163,6 +163,25 @@ export async function listApplications(): Promise<StoredApplication[]> {
   return (await readFile()).applications;
 }
 
+// Applications submitted by a specific applicant (for their own history page).
+export async function listApplicationsByUser(
+  userId: string,
+): Promise<StoredApplication[]> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(`Failed to load your applications: ${error.message}`);
+    return (data ?? []).map(rowToApplication);
+  }
+
+  return (await readFile()).applications.filter((a) => a.userId === userId);
+}
+
 // Returns true if this user has already applied to this job (dedupe guard).
 export async function hasApplied(
   jobId: string,
