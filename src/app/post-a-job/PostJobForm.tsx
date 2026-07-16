@@ -65,8 +65,7 @@ export default function PostJobForm({
     <div className="mx-auto max-w-2xl px-4 py-10">
       <h1 className="text-2xl font-bold text-slate-900">Post a Job</h1>
       <p className="mt-2 text-slate-600">
-        Reach local talent across Guam. It&apos;s free to post your first
-        listing.
+        Reach local talent across Guam — it&apos;s free to post your job.
       </p>
 
       <form

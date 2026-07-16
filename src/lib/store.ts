@@ -255,6 +255,38 @@ export async function setJobStatus(
   await writeFile(db);
 }
 
+// Count applications per job id (for the employer dashboard, so employers can
+// see how many people applied to each of their postings). Returns a map keyed
+// by job id; every requested id is present (0 when no applications).
+export async function applicationCountsForJobs(
+  jobIds: string[],
+): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+  for (const id of jobIds) counts[id] = 0;
+  if (jobIds.length === 0) return counts;
+
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("applications")
+      .select("job_id")
+      .in("job_id", jobIds);
+    if (error) throw new Error(`Failed to count applications: ${error.message}`);
+    for (const row of data ?? []) {
+      const jid = String((row as { job_id: unknown }).job_id);
+      counts[jid] = (counts[jid] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  const db = await readFile();
+  for (const a of db.applications) {
+    if (jobIds.includes(a.jobId)) counts[a.jobId] = (counts[a.jobId] ?? 0) + 1;
+  }
+  return counts;
+}
+
 // Jobs posted by a specific employer (for their dashboard).
 export async function listJobsByUser(userId: string): Promise<PendingJob[]> {
   const supabase = getSupabase();
