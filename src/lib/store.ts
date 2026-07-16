@@ -255,6 +255,67 @@ export async function setJobStatus(
   await writeFile(db);
 }
 
+// A single job by id (for ownership checks and the edit form).
+export async function getJobById(id: string): Promise<PendingJob | null> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(`Failed to load job: ${error.message}`);
+    return data ? rowToPendingJob(data as Record<string, unknown>) : null;
+  }
+
+  return (await readFile()).pendingJobs.find((j) => j.id === id) ?? null;
+}
+
+export interface JobEditFields {
+  title: string;
+  company: string;
+  location: string;
+  category: string;
+  jobType: string;
+  salary: string;
+  email: string;
+  description: string;
+}
+
+// Update an employer's job. Edits send the posting back to review (pending) so
+// changed content is re-checked before it's public again.
+export async function updateJob(
+  id: string,
+  fields: JobEditFields,
+): Promise<void> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { error } = await supabase
+      .from("jobs")
+      .update({
+        title: fields.title,
+        company: fields.company,
+        location: fields.location,
+        category: fields.category,
+        job_type: fields.jobType,
+        salary: fields.salary,
+        email: fields.email,
+        description: fields.description,
+        status: "pending",
+      })
+      .eq("id", id);
+    if (error) throw new Error(`Failed to update job: ${error.message}`);
+    return;
+  }
+
+  const db = await readFile();
+  const job = db.pendingJobs.find((j) => j.id === id);
+  if (job) Object.assign(job, fields, { status: "pending" as const });
+  await writeFile(db);
+}
+
 // Count applications per job id (for the employer dashboard, so employers can
 // see how many people applied to each of their postings). Returns a map keyed
 // by job id; every requested id is present (0 when no applications).

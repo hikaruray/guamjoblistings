@@ -109,6 +109,14 @@ export default async function EmployerDashboardPage() {
                       and we&apos;ll help.
                     </p>
                   )}
+                  <div className="mt-3 flex justify-end border-t border-slate-100 pt-3">
+                    <Link
+                      href={`/employer/jobs/${job.id}/edit`}
+                      className="text-sm font-medium text-cyan-600 hover:text-cyan-700"
+                    >
+                      Edit
+                    </Link>
+                  </div>
                 </div>
               );
             })}
