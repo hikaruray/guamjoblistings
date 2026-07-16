@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
 import { listJobsByUser, applicationCountsForJobs } from "@/lib/store";
 import LogoutButton from "@/components/LogoutButton";
+import DashboardJobActions from "./DashboardJobActions";
 
 export const dynamic = "force-dynamic";
 
@@ -16,12 +17,14 @@ const STATUS_LABEL: Record<string, string> = {
   pending: "Pending review",
   approved: "Live",
   rejected: "Not approved",
+  closed: "Closed",
 };
 
 const STATUS_STYLE: Record<string, string> = {
   pending: "bg-amber-100 text-amber-700",
   approved: "bg-emerald-100 text-emerald-700",
   rejected: "bg-rose-100 text-rose-700",
+  closed: "bg-slate-200 text-slate-600",
 };
 
 export default async function EmployerDashboardPage() {
@@ -102,21 +105,25 @@ export default async function EmployerDashboardPage() {
                     </div>
                   </div>
                   {job.status === "rejected" && (
-                    <p className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                      This posting wasn&apos;t approved — usually due to missing
-                      details or content outside our guidelines. Please review and
-                      post again, or email us at applications@guamjoblisting.com
-                      and we&apos;ll help.
-                    </p>
+                    <div className="mt-2 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                      {job.rejectionReason ? (
+                        <p>
+                          <span className="font-semibold">Reason:</span>{" "}
+                          {job.rejectionReason}
+                        </p>
+                      ) : (
+                        <p>
+                          This posting wasn&apos;t approved — usually due to
+                          missing details or content outside our guidelines.
+                        </p>
+                      )}
+                      <p className="mt-1">
+                        Please edit and resubmit, or email us at
+                        applications@guamjoblisting.com and we&apos;ll help.
+                      </p>
+                    </div>
                   )}
-                  <div className="mt-3 flex justify-end border-t border-slate-100 pt-3">
-                    <Link
-                      href={`/employer/jobs/${job.id}/edit`}
-                      className="text-sm font-medium text-cyan-600 hover:text-cyan-700"
-                    >
-                      Edit
-                    </Link>
-                  </div>
+                  <DashboardJobActions id={job.id} status={job.status} />
                 </div>
               );
             })}

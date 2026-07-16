@@ -30,6 +30,8 @@ export interface StoredApplication {
   createdAt: string;
 }
 
+export type JobStatus = "pending" | "approved" | "rejected" | "closed";
+
 export interface PendingJob {
   id: string;
   title: string;
@@ -40,7 +42,8 @@ export interface PendingJob {
   salary: string;
   email: string;
   description: string;
-  status: "pending" | "approved" | "rejected";
+  status: JobStatus;
+  rejectionReason?: string | null; // reason shown to the employer if not approved
   userId?: string | null; // posting employer's auth user id (null for legacy/anon)
   createdAt: string;
 }
@@ -75,7 +78,8 @@ function rowToPendingJob(row: Record<string, unknown>): PendingJob {
     salary: String(row.salary),
     email: String(row.email),
     description: String(row.description),
-    status: row.status as PendingJob["status"],
+    status: row.status as JobStatus,
+    rejectionReason: (row.rejection_reason as string) ?? null,
     userId: (row.user_id as string) ?? null,
     createdAt: String(row.created_at),
   };
@@ -236,14 +240,17 @@ export async function listPendingJobs(): Promise<PendingJob[]> {
 
 export async function setJobStatus(
   jobId: string,
-  status: PendingJob["status"],
+  status: JobStatus,
+  rejectionReason?: string | null,
 ): Promise<void> {
+  // Keep a rejection reason only while the job is rejected; clear it otherwise.
+  const reason = status === "rejected" ? rejectionReason ?? null : null;
   const supabase = getSupabase();
 
   if (supabase) {
     const { error } = await supabase
       .from("jobs")
-      .update({ status })
+      .update({ status, rejection_reason: reason })
       .eq("id", jobId);
     if (error) throw new Error(`Failed to update job status: ${error.message}`);
     return;
@@ -251,7 +258,10 @@ export async function setJobStatus(
 
   const db = await readFile();
   const job = db.pendingJobs.find((j) => j.id === jobId);
-  if (job) job.status = status;
+  if (job) {
+    job.status = status;
+    job.rejectionReason = reason;
+  }
   await writeFile(db);
 }
 
@@ -304,6 +314,7 @@ export async function updateJob(
         email: fields.email,
         description: fields.description,
         status: "pending",
+        rejection_reason: null, // resubmitted content — clear any old reason
       })
       .eq("id", id);
     if (error) throw new Error(`Failed to update job: ${error.message}`);
@@ -312,7 +323,11 @@ export async function updateJob(
 
   const db = await readFile();
   const job = db.pendingJobs.find((j) => j.id === id);
-  if (job) Object.assign(job, fields, { status: "pending" as const });
+  if (job)
+    Object.assign(job, fields, {
+      status: "pending" as const,
+      rejectionReason: null,
+    });
   await writeFile(db);
 }
 

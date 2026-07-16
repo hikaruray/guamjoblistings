@@ -8,12 +8,20 @@ export default function JobActions({ jobId }: { jobId: string }) {
   const [busy, setBusy] = useState(false);
 
   async function act(action: "approve" | "reject") {
+    let rejectionReason: string | undefined;
+    if (action === "reject") {
+      const r = prompt(
+        "Reason for not approving (shown to the employer). Leave blank for a generic message:",
+      );
+      if (r === null) return; // cancelled
+      rejectionReason = r.trim() || undefined;
+    }
     setBusy(true);
     try {
       await fetch("/api/admin/job", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: jobId, action }),
+        body: JSON.stringify({ id: jobId, action, rejectionReason }),
       });
       router.refresh();
     } finally {
