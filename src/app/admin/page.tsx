@@ -22,24 +22,145 @@ export default async function AdminPage() {
     listPendingJobs(),
   ]);
 
+  const now = Date.now();
+  const daysAgo = (iso: string) => (now - new Date(iso).getTime()) / 86_400_000;
+
+  // ── Supply (employers & listings) ────────────────────────────────────
+  const liveJobs = pendingJobs.filter((j) => j.status === "approved");
   const awaitingReview = pendingJobs.filter((j) => j.status === "pending").length;
+  const closedJobs = pendingJobs.filter((j) => j.status === "closed").length;
+  // Unique employers = distinct account (fall back to company name for legacy rows)
+  const employers = new Set(pendingJobs.map((j) => j.userId ?? j.company)).size;
+  const newJobs7 = pendingJobs.filter((j) => daysAgo(j.createdAt) <= 7).length;
+
+  // ── Demand (applicants) ──────────────────────────────────────────────
+  const applicants = new Set(applications.map((a) => a.userId ?? a.email)).size;
+  const apps7 = applications.filter((a) => daysAgo(a.createdAt) <= 7).length;
+  const apps30 = applications.filter((a) => daysAgo(a.createdAt) <= 30).length;
+
+  // ── Matching ─────────────────────────────────────────────────────────
+  // Applications are stored against the PUBLIC job id: `p_<uuid>` for employer
+  // submissions, or the seed id for the built-in sample jobs.
+  const countByPublicId = new Map<string, number>();
+  for (const a of applications) {
+    countByPublicId.set(a.jobId, (countByPublicId.get(a.jobId) ?? 0) + 1);
+  }
+  const appsForEmployerJobs = applications.filter((a) =>
+    a.jobId.startsWith("p_"),
+  ).length;
+  const appsForSampleJobs = applications.length - appsForEmployerJobs;
+  const liveWithApplicants = liveJobs.filter(
+    (j) => (countByPublicId.get(`p_${j.id}`) ?? 0) > 0,
+  ).length;
+  const avgPerLiveJob = liveJobs.length
+    ? appsForEmployerJobs / liveJobs.length
+    : 0;
+
+  // Most applied-to listings (real + sample), highest first.
+  const topJobs = [...countByPublicId.entries()]
+    .map(([publicId, count]) => {
+      const sample = applications.find((a) => a.jobId === publicId);
+      return {
+        publicId,
+        count,
+        title: sample?.jobTitle ?? "(unknown)",
+        company: sample?.company ?? "",
+        isSample: !publicId.startsWith("p_"),
+      };
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Review job submissions and track applications.
+        Business overview — listings, applicants, matching and revenue.
       </p>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Stat label="Total Applications" value={applications.length} />
-        <Stat label="Job Submissions" value={pendingJobs.length} />
-        <Stat label="Awaiting Review" value={awaitingReview} highlight={awaitingReview > 0} />
+      {/* ── Overview ─────────────────────────────────────────────── */}
+      <h2 className="mt-8 text-lg font-bold text-slate-900">Overview</h2>
+      <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        <Stat label="Live jobs" value={liveJobs.length} />
         <Stat
-          label="Approved"
-          value={pendingJobs.filter((j) => j.status === "approved").length}
+          label="Awaiting review"
+          value={awaitingReview}
+          highlight={awaitingReview > 0}
+        />
+        <Stat label="Employers" value={employers} />
+        <Stat label="Applicants" value={applicants} />
+        <Stat label="Applications" value={applications.length} />
+        <Stat label="Revenue" value="$0.00" note="add-ons not enabled yet" money />
+      </div>
+
+      {/* ── Matching ─────────────────────────────────────────────── */}
+      <h2 className="mt-10 text-lg font-bold text-slate-900">
+        Matching — are listings getting applicants?
+      </h2>
+      <div className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Stat
+          label="Applications to employer jobs"
+          value={appsForEmployerJobs}
+          note={`${appsForSampleJobs} to sample listings`}
+        />
+        <Stat
+          label="Live jobs with applicants"
+          value={`${liveWithApplicants} / ${liveJobs.length}`}
+          note={
+            liveJobs.length
+              ? `${Math.round((liveWithApplicants / liveJobs.length) * 100)}% getting interest`
+              : "no live jobs yet"
+          }
+        />
+        <Stat
+          label="Avg applications / live job"
+          value={avgPerLiveJob.toFixed(1)}
+        />
+        <Stat
+          label="Applications 7d / 30d"
+          value={`${apps7} / ${apps30}`}
+          note={`${newJobs7} new listings in 7d`}
         />
       </div>
+
+      {/* Most applied-to listings */}
+      <h3 className="mt-6 text-sm font-semibold text-slate-700">
+        Most applied-to listings
+      </h3>
+      <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        {topJobs.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-slate-400">
+            No applications yet.
+          </p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {topJobs.map((t) => (
+              <li
+                key={t.publicId}
+                className="flex items-center justify-between gap-3 px-4 py-3 text-sm"
+              >
+                <span className="min-w-0">
+                  <span className="font-medium text-slate-900">{t.title}</span>
+                  <span className="text-slate-500"> · {t.company}</span>
+                  {t.isSample && (
+                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                      sample
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0 font-semibold text-slate-700">
+                  {t.count} applicant{t.count === 1 ? "" : "s"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <p className="mt-3 text-xs text-slate-400">
+        Listings: {liveJobs.length} live · {awaitingReview} awaiting review ·{" "}
+        {closedJobs} closed · {pendingJobs.length} submitted in total.
+      </p>
 
       {/* Pending jobs — pre-publish check */}
       <h2 className="mt-10 text-lg font-bold text-slate-900">
@@ -137,8 +258,9 @@ export default async function AdminPage() {
       </div>
 
       <p className="mt-4 text-xs text-slate-400">
-        Using local development storage. At launch this connects to the live
-        database and is protected by owner login.
+        Live data from the production database. This page is protected by owner
+        login. Revenue stays $0 until paid add-ons (Featured / Urgent) are turned
+        on.
       </p>
     </div>
   );
@@ -148,21 +270,29 @@ function Stat({
   label,
   value,
   highlight,
+  money,
+  note,
 }: {
   label: string;
-  value: number;
+  value: string | number;
   highlight?: boolean;
+  money?: boolean; // revenue card (emerald)
+  note?: string; // small caption under the label
 }) {
+  const box = highlight
+    ? "border-amber-200 bg-amber-50"
+    : money
+      ? "border-emerald-200 bg-emerald-50"
+      : "border-slate-200 bg-white";
   return (
-    <div
-      className={`rounded-xl border p-4 shadow-sm ${
-        highlight
-          ? "border-amber-200 bg-amber-50"
-          : "border-slate-200 bg-white"
-      }`}
-    >
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
+    <div className={`rounded-xl border p-4 shadow-sm ${box}`}>
+      <p
+        className={`text-2xl font-bold ${money ? "text-emerald-700" : "text-slate-900"}`}
+      >
+        {value}
+      </p>
       <p className="mt-1 text-sm text-slate-500">{label}</p>
+      {note && <p className="mt-0.5 text-xs text-slate-400">{note}</p>}
     </div>
   );
 }

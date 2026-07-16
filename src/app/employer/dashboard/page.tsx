@@ -44,7 +44,10 @@ export default async function EmployerDashboardPage() {
   if (!user) redirect("/employer/login?next=/employer/dashboard");
 
   const jobs = await listJobsByUser(user.id);
-  const counts = await applicationCountsForJobs(jobs.map((j) => j.id));
+  // Applications are stored against the PUBLIC job id, which for an employer
+  // submission is `p_<uuid>` (see lib/public-jobs.ts mapApproved) — not the raw
+  // row id. Count against that or every job shows 0 applicants.
+  const counts = await applicationCountsForJobs(jobs.map((j) => `p_${j.id}`));
   const totalApplicants = Object.values(counts).reduce((a, b) => a + b, 0);
 
   return (
@@ -78,7 +81,7 @@ export default async function EmployerDashboardPage() {
           </p>
           <div className="mt-3 space-y-3">
             {jobs.map((job) => {
-              const n = counts[job.id] ?? 0;
+              const n = counts[`p_${job.id}`] ?? 0;
               return (
                 <div
                   key={job.id}
