@@ -1,0 +1,94 @@
+{
+  "id": 20,
+  "date": "2024-03-19T03:51:27",
+  "date_gmt": "2024-03-19T03:51:27",
+  "guid": {
+    "rendered": "https://guamjoblisting.com/index.php/top-listings/"
+  },
+  "modified": "2024-03-19T03:51:27",
+  "modified_gmt": "2024-03-19T03:51:27",
+  "slug": "top-listings",
+  "status": "publish",
+  "type": "page",
+  "link": "https://guamjoblisting.com/top-listings/",
+  "title": {
+    "rendered": "Top Listings"
+  },
+  "content": {
+    "rendered": "",
+    "protected": false
+  },
+  "excerpt": {
+    "rendered": "",
+    "protected": false
+  },
+  "author": 1,
+  "featured_media": 0,
+  "parent": 0,
+  "menu_order": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "templates/tpl-page-top.php",
+  "meta": {
+    "footnotes": ""
+  },
+  "class_list": [
+    "post-20",
+    "page",
+    "type-page",
+    "status-publish",
+    "hentry"
+  ],
+  "_links": {
+    "self": [
+      {
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/pages/20",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/pages"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/types/page"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/comments?post=20"
+      }
+    ],
+    "version-history": [
+      {
+        "count": 0,
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/pages/20/revisions"
+      }
+    ],
+    "wp:attachment": [
+      {
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/media?parent=20"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

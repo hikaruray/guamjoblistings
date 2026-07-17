@@ -1,0 +1,94 @@
+{
+  "id": 370,
+  "date": "2024-07-25T08:40:43",
+  "date_gmt": "2024-07-24T22:40:43",
+  "guid": {
+    "rendered": "https://guamjoblisting.com/category-list/"
+  },
+  "modified": "2024-07-25T08:40:43",
+  "modified_gmt": "2024-07-24T22:40:43",
+  "slug": "category-list",
+  "status": "publish",
+  "type": "page",
+  "link": "https://guamjoblisting.com/category-list/",
+  "title": {
+    "rendered": "Category List"
+  },
+  "content": {
+    "rendered": "",
+    "protected": false
+  },
+  "excerpt": {
+    "rendered": "",
+    "protected": false
+  },
+  "author": 1,
+  "featured_media": 0,
+  "parent": 0,
+  "menu_order": 0,
+  "comment_status": "closed",
+  "ping_status": "closed",
+  "template": "templates/tpl-page-categories.php",
+  "meta": {
+    "footnotes": ""
+  },
+  "class_list": [
+    "post-370",
+    "page",
+    "type-page",
+    "status-publish",
+    "hentry"
+  ],
+  "_links": {
+    "self": [
+      {
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/pages/370",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/pages"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/types/page"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/comments?post=370"
+      }
+    ],
+    "version-history": [
+      {
+        "count": 0,
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/pages/370/revisions"
+      }
+    ],
+    "wp:attachment": [
+      {
+        "href": "https://guamjoblisting.com/wp-json/wp/v2/media?parent=370"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

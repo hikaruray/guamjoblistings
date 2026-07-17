@@ -95,6 +95,9 @@ export default function RootLayout({
                   <Link href="/employer/login" className="hover:text-slate-700">
                     Employers
                   </Link>
+                  <Link href="/blog" className="hover:text-slate-700">
+                    Guides
+                  </Link>
                 </p>
               </div>
               <p>© {new Date().getFullYear()} Guam Job Listings. All rights reserved.</p>
