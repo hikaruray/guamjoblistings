@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/config";
 import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.guamjoblisting.com"),
+  // Same rule as the sitemap: follow NEXT_PUBLIC_SITE_URL, never a literal.
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Guam Job Listings | Find Jobs & Hire in Guam",
     template: "%s | Guam Job Listings",
@@ -97,6 +99,24 @@ export default function RootLayout({
                   </Link>
                   <Link href="/blog" className="hover:text-slate-700">
                     Guides
+                  </Link>
+                  <Link href="/how-it-works" className="hover:text-slate-700">
+                    How It Works
+                  </Link>
+                  <Link href="/about-us" className="hover:text-slate-700">
+                    About
+                  </Link>
+                  <Link href="/faq" className="hover:text-slate-700">
+                    FAQ
+                  </Link>
+                  <Link href="/contact" className="hover:text-slate-700">
+                    Contact
+                  </Link>
+                  <Link href="/privacy" className="hover:text-slate-700">
+                    Privacy
+                  </Link>
+                  <Link href="/terms" className="hover:text-slate-700">
+                    Terms
                   </Link>
                 </p>
               </div>

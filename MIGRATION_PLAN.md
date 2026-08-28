@@ -112,10 +112,31 @@ WordPressを畳むにしても、**畳み終わるまでの数週間〜数か月
 
 ### Phase 2 Xserverでメールを準備【オーナー】
 
-- Xserverに `guamjoblisting.com` を追加（ドメイン設定）
-- **同名2アドレスを作成**：`mainoffice@guamjoblisting.com` / `admin@guamjoblisting.com`
-  - **過去メールの移行は不要**（オーナー確認済）＝アドレスが存在すればよい
-- 🔴 **切替前にHostUponで確認**：①転送設定の有無（あればXserver側で再設定）②Gmailの「送信元として使う(Send mail as)」の有無（あればSMTP設定の更新が必要）
+> 🔴 **2026-08-29 全面改訂。** 実際にcPanel・Gmail・DNSを棚卸しした結果、旧版の記述に**誤りが2つ**あった（アドレス数／NSの進め方）。以下は推測ではなく実測に基づく。
+
+**済**
+- [x] Xserverに `guamjoblisting.com` を**追加**（購入ではない。既存契約の無料枠）→ ドメイン所有権の認証を通過
+- [x] `mainoffice@` / `admin@` のメールアカウント作成
+- [x] 🔴 **「SMTP認証の国外アクセス制限」を解除**（オーナーはグアム在住＝国外扱いで送信が全部弾かれる。Gmailのsend-asも米国発なので同じ）
+
+**残**
+- [ ] **`applications@guamjoblisting.com` を作成** ← 🔴 旧版に無かった。Next.js版はResendでこのアドレスから送る（`src/lib/config.ts` の `FROM_EMAIL`）が**箱が存在せず、返信が宛先不明で跳ねる**
+- [ ] **転送を再現**：`mainoffice@` → `ynishihira@gmail.com`（HostUponに設定されている唯一の転送。オーナーはこれ経由でGmailで読んでいる）
+- [ ] `guamjoblisting.com` を**どのXserverサーバーに追加したか**確認（Mokaru/DaDealは `sv16378`、guam-homes.netは `sv2207`＝契約が2つある可能性。SPFの値がサーバー名に依存する）
+
+**❌ 旧版の誤り**
+- ~~「同名2アドレスを作成」~~ → **実際は3つ＋システム1が存在**：`mainoffice@`(42.28MB) / `admin@`(98KB) / `noreply@`(84KB) / `guamjobl`[System](22.19MB)
+- ただし **`noreply@` はXserverに作らない**＝cPanelで**受信をSuspend**した送信専用箱で、**WordPressの送信元**として使われていた。WordPressと一緒に役目が終わる
+- **作るのは `mainoffice@` `admin@` `applications@` の3つ**
+
+**実測で確定した前提（再調査不要）**
+| 項目 | 結果 |
+|---|---|
+| 転送 | `mainoffice@`→Gmail の**1本だけ**。Domain Forwarderなし |
+| 自動応答 | なし |
+| キャッチオール | **なし**（外部からSMTPで確認＝存在しない宛先は `550 No Such User Here`） |
+| 過去メール | `mainoffice@` は転送でGmailにコピー済。`admin@`/`noreply@`/システムは**HostUponのみ → オーナー判断＝不要**（2026-08-29） |
+| Gmail send-as | `mainoffice@` が **`mail.guamjoblisting.com:465/SSL`** を使用 ← 🔴 後述の罠① |
 
 ### Phase 3 Vercel側の受け入れ準備【Jobくん】
 
@@ -123,16 +144,47 @@ WordPressを畳むにしても、**畳み終わるまでの数週間〜数か月
 - ブログ9本が同一URLで出ることをプレビューで確認
 - ⚠️ **Vercelプロジェクト名は `guamjoblistings`（複数形）でドメインと綴りが違う**。混同注意
 
-### Phase 4 NS変更＋DNS設定【オーナー・要注意】
+### Phase 4 DNS切替【オーナー・要注意】
 
-**ここが最も危険。** 現状 **MX = `guamjoblisting.com` 自身**＝Aレコードで解決される同じホスト。**Aレコードを変えた瞬間にメールが死ぬ。**
+> 🔴 **2026-08-29 方針変更。** 旧版は「NSを移して A も MX も一度に変える」＝**一発勝負**だった。
+> 代わりに **「Xserverのゾーンを現状の忠実な複製として作り、MXだけ変えてからNSを切り替える」**。
+> こうするとNS切替で**変わるのはMXだけ**になり、サイトは1ミリも動かない。サイトはその後 A 1本で移す。
+> **理由**＝XserverのSPF/DKIM/DMARC設定は**Xserverのゾーンにしか書かない**。NSがHostUponにある間は無効で、DKIMの公開鍵を手写しする羽目になり事故る。
 
-1. NSを HostUpon → **Xserver** へ変更
-2. Xserver DNSで設定：
-   - **A / CNAME → Vercel**（サイト）
-   - **MX → Xserverのメールサーバー**（`sv####.xserver.jp` 形式）
-   - **SPF / DKIM** をXserver向けに設定
-3. ⚠️ **MXをXserverに向けてから／同時に** Aレコードを変える。順序を誤るとメールが落ちる
+**HostUponの現ゾーン＝全25本。引き継ぐのは3本、22本は捨てる**（2026-08-29 実測）
+
+| 引き継ぐ | 種類 | 現在 | Phase 4 | Phase 6 |
+|---|---|---|---|---|
+| `guamjoblisting.com` | A | `192.81.168.3` | **そのまま** | `216.198.79.1`（Vercel） |
+| `www` | CNAME | apex | **そのまま** | Vercel指定の `<固有>.vercel-dns-017.com` |
+| `@` | MX | `guamjoblisting.com`(0) | **`mx01.xserver.jp`(10)** | 変更なし |
+
+**捨てる22本**＝cPanelサービス用ホスト9本(`ftp` `cpanel` `whm` `webmail` `webdisk` `cpcalendars` `cpcontacts` `autoconfig` `autodiscover`)／グループウェア自動検出9本(`_caldav._tcp` `_caldavs._tcp` `_carddav._tcp` `_carddavs._tcp` の SRV+TXT×4 と `_autodiscover._tcp` SRV)／`_cpanel-dcv-test-record` TXT／`_acme-challenge` TXT／`mail` CNAME／`default._domainkey` TXT
+
+#### 🔴 罠① `mail` CNAME — 実在を確認済み
+`mail.guamjoblisting.com` はHostUponを指しており、**Gmailの送信設定が実際にこれを使っている**（`port 465 / SSL`）。
+消すか解約した瞬間に **Gmailから `mainoffice@` として送れなくなる**。メールソフトの受信設定も同様。
+→ 切替後に **`sv16378.xserver.jp` / port 587 / TLS** に変更する（同じGmail画面の `tour@mokaruguam.com` と同じ形）。
+
+#### 🔴 罠② DKIMのセレクタ名がXserverと同じ `default`
+`default._domainkey` はHostUponが作った鍵。**Xserverも同じ `default` セレクタを使う**（dadealx.comで確認）。
+そのまま写すと**「名前は正しいが中身が旧サーバーの鍵」**になり、Xserverから送る全メールの署名が検証失敗する。**見た目では気付けない。**
+→ **必ず捨てて、Xserverの「DKIM設定」で生成させる。SPFも「SPF設定」で自動生成（手書き禁止）。**
+
+#### 手順
+1. Xserverの**DNSレコード設定**でゾーンを作る：A `192.81.168.3`／`www` CNAME→apex／**MXだけXserverへ**
+2. Xserverの**SPF設定・DKIM設定**をON（ボタンで完結）
+3. **NSを HostUpon → Xserver（`ns1`〜`ns5.xserver.jp`）へ変更**
+4. 🔴 **HostUponのメールボックスと転送は消さない**。DNS浸透中は宛先が新旧に割れるが、両方に箱があれば1通も失われない
+5. 浸透後、Phase 5の検証 → OKならGmailのsend-asを `sv16378.xserver.jp:587/TLS` に変更
+6. **ロールバック＝NSを `ns1/ns2.hostupon.com` に戻すだけ**
+
+⚠️ Phase 4 と Phase 6 の間隔は**数日〜1週間**に留める。`_acme-challenge`／`_cpanel-dcv-test-record` を捨てるため、長引くとWordPressの証明書自動更新が失敗する可能性がある（Aは変わらないのでHTTP検証で通るはずだが、賭けない）。
+
+### Phase 4b サイト切替【Aレコード1本だけ】
+
+Phase 5でメールの正常が確認できてから。**Xserverの画面で `A` を `192.81.168.3` → `216.198.79.1` に変え、`www` をVercel指定のCNAMEにする。** メールはMXが別を向いているので**無影響**。戻すのも1本。
+
 
 ### Phase 5 検証【切替後すぐ】
 

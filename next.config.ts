@@ -116,6 +116,34 @@ if (process.env.VERCEL_ENV === "production" && !process.env.NEXT_PUBLIC_SITE_URL
 const nextConfig: NextConfig = {
   async redirects() {
     return [
+      // ── Old WordPress URLs (2026-08-29) ──────────────────────────────
+      // The WordPress sitemap had 73 URLs; this Next.js site answers 11 of
+      // them. Most of the rest SHOULD 404 — /resume/ and /author/* were the
+      // 2026-07-17 exposure we deliberately took down, and the old listing /
+      // taxonomy / membership pages have no equivalent here.
+      //
+      // These three do have a page whose content genuinely corresponds, so
+      // they are redirected rather than dropped. Mokaru's lesson: Google
+      // treats a 301 to an unrelated page as a soft 404 and you lose the
+      // traffic anyway, so "just send everything to the homepage" is the
+      // worst option. Only redirect where the destination really matches.
+      {
+        // Tag archives for the 9 migrated blog posts → the blog index.
+        source: "/tag/:slug",
+        destination: "/blog",
+        permanent: true,
+      },
+      {
+        // Old paid-advertising pages → where you actually post a job now.
+        source: "/pricing",
+        destination: "/post-a-job",
+        permanent: true,
+      },
+      {
+        source: "/advertising",
+        destination: "/post-a-job",
+        permanent: true,
+      },
       // The old WordPress site had duplicate index.php-prefixed URLs indexed
       // (e.g. /index.php/blog/). Normalise them to the clean path with a 301.
       {

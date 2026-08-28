@@ -13,6 +13,11 @@ export const SITE_NAME = "Guam Job Listings";
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "http://localhost:3000";
 
+// Public contact details. Shown on /contact — the single place they are
+// written down, so the site and any structured data cannot drift apart.
+export const CONTACT_EMAIL = "mainoffice@guamjoblisting.com";
+export const CONTACT_ADDRESS = "176 Perez Way, Tamuning, Guam";
+
 // Owner always receives a copy (BCC) of every application for record-keeping.
 export const OWNER_COPY_EMAIL = "ynishihira@gmail.com";
 
