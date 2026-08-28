@@ -13,7 +13,13 @@ export default function JobCard({ job }: { job: Job }) {
   return (
     <Link
       href={`/jobs/${job.id}`}
-      className="group block rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-cyan-300 hover:shadow-md"
+      // A paid Featured listing gets a visibly warmer card — the employer is
+      // paying to stand out, so it must actually look different in the list.
+      className={`group block rounded-xl border bg-white p-5 shadow-sm transition hover:border-cyan-300 hover:shadow-md ${
+        job.featured
+          ? "border-amber-300 ring-1 ring-amber-200"
+          : "border-slate-200"
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -25,11 +31,18 @@ export default function JobCard({ job }: { job: Job }) {
             <p className="text-sm text-slate-500">{job.company}</p>
           </div>
         </div>
-        {job.featured && (
-          <span className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
-            ★ Featured
-          </span>
-        )}
+        <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+          {job.urgent && (
+            <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700">
+              🔥 Urgent
+            </span>
+          )}
+          {job.featured && (
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+              ★ Featured
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2 text-xs">

@@ -46,6 +46,32 @@ export interface PendingJob {
   rejectionReason?: string | null; // reason shown to the employer if not approved
   userId?: string | null; // posting employer's auth user id (null for legacy/anon)
   createdAt: string;
+  // --- Paid add-on state (see launch/supabase-addons-migration.sql) ---
+  // Time-boxed: the timestamp is the source of truth, not a boolean. A job is
+  // featured only while featuredUntil is in the future, so expiry is automatic
+  // and needs no scheduled job.
+  featuredUntil?: string | null;
+  urgentUntil?: string | null;
+  expiresAt?: string | null; // null = never auto-expires (current default)
+}
+
+// A single PayPal charge. Written as 'created' when the order is opened and
+// promoted to 'paid' ONLY when PayPal confirms the capture COMPLETED.
+export interface StoredPayment {
+  id: string;
+  jobId: string;
+  userId?: string | null;
+  addon: string; // "featured" | "urgent" | "extension"
+  amountCents: number;
+  currency: string;
+  days: number;
+  status: "created" | "paid" | "failed";
+  paypalOrderId: string;
+  paypalCaptureId?: string | null;
+  payerEmail?: string | null;
+  errorNote?: string | null;
+  createdAt: string;
+  paidAt?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -82,6 +108,28 @@ function rowToPendingJob(row: Record<string, unknown>): PendingJob {
     rejectionReason: (row.rejection_reason as string) ?? null,
     userId: (row.user_id as string) ?? null,
     createdAt: String(row.created_at),
+    featuredUntil: (row.featured_until as string) ?? null,
+    urgentUntil: (row.urgent_until as string) ?? null,
+    expiresAt: (row.expires_at as string) ?? null,
+  };
+}
+
+function rowToPayment(row: Record<string, unknown>): StoredPayment {
+  return {
+    id: String(row.id),
+    jobId: String(row.job_id),
+    userId: (row.user_id as string) ?? null,
+    addon: String(row.addon),
+    amountCents: Number(row.amount_cents),
+    currency: String(row.currency ?? "USD"),
+    days: Number(row.days),
+    status: row.status as StoredPayment["status"],
+    paypalOrderId: String(row.paypal_order_id),
+    paypalCaptureId: (row.paypal_capture_id as string) ?? null,
+    payerEmail: (row.payer_email as string) ?? null,
+    errorNote: (row.error_note as string) ?? null,
+    createdAt: String(row.created_at),
+    paidAt: (row.paid_at as string) ?? null,
   };
 }
 
@@ -92,6 +140,7 @@ function rowToPendingJob(row: Record<string, unknown>): PendingJob {
 interface DB {
   applications: StoredApplication[];
   pendingJobs: PendingJob[];
+  payments: StoredPayment[];
 }
 
 const DATA_DIR = path.join(process.cwd(), ".data");
@@ -100,9 +149,15 @@ const DB_FILE = path.join(DATA_DIR, "db.json");
 async function readFile(): Promise<DB> {
   try {
     const raw = await fs.readFile(DB_FILE, "utf8");
-    return JSON.parse(raw) as DB;
+    const db = JSON.parse(raw) as Partial<DB>;
+    // Tolerate older db.json files written before payments existed.
+    return {
+      applications: db.applications ?? [],
+      pendingJobs: db.pendingJobs ?? [],
+      payments: db.payments ?? [],
+    };
   } catch {
-    return { applications: [], pendingJobs: [] };
+    return { applications: [], pendingJobs: [], payments: [] };
   }
 }
 
@@ -380,6 +435,238 @@ export async function applicationCountsForJobs(
     if (jobIds.includes(a.jobId)) counts[a.jobId] = (counts[a.jobId] ?? 0) + 1;
   }
   return counts;
+}
+
+// ---------------------------------------------------------------------------
+// Payments & paid add-ons
+// ---------------------------------------------------------------------------
+//
+// Lifecycle, and why it is ordered this way:
+//   1. createPayment()          — status 'created', written BEFORE the buyer is
+//                                 sent to PayPal. Records our intent and the
+//                                 server-decided amount.
+//   2. markPaymentPaidAndGrant()— called ONLY after PayPal confirms the capture
+//                                 COMPLETED. Flips 'created' → 'paid' and grants
+//                                 the add-on in the same step.
+//   3. markPaymentFailed()      — the buyer abandoned, or PayPal declined.
+//                                 The add-on is NEVER granted.
+//
+// The add-on is granted in exactly one place (step 2), gated on a successful
+// 'created' → 'paid' transition. If the buyer never approves, or PayPal denies
+// the order, nothing reaches step 2 and the job is untouched. This is the
+// specific bug Mokaru shipped once (saving a booking as held on a DENIED
+// authorization) and the ordering above is what prevents it here.
+
+// Add `days` to an existing deadline, or start from now if it's absent/expired.
+// Buying Featured twice in a row therefore stacks (60 days), rather than
+// silently throwing away the time the employer already paid for.
+function extendDeadline(current: string | null | undefined, days: number): string {
+  const now = Date.now();
+  const currentMs = current ? new Date(current).getTime() : 0;
+  const base = Number.isFinite(currentMs) && currentMs > now ? currentMs : now;
+  return new Date(base + days * 86_400_000).toISOString();
+}
+
+// The column each add-on extends.
+const ADDON_COLUMN: Record<string, "featured_until" | "urgent_until" | "expires_at"> = {
+  featured: "featured_until",
+  urgent: "urgent_until",
+  extension: "expires_at",
+};
+
+const ADDON_FIELD: Record<string, "featuredUntil" | "urgentUntil" | "expiresAt"> = {
+  featured: "featuredUntil",
+  urgent: "urgentUntil",
+  extension: "expiresAt",
+};
+
+export async function createPayment(
+  data: Omit<StoredPayment, "id" | "createdAt" | "status" | "paidAt">,
+): Promise<void> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { error } = await supabase.from("payments").insert({
+      job_id: data.jobId,
+      user_id: data.userId ?? null,
+      addon: data.addon,
+      amount_cents: data.amountCents,
+      currency: data.currency,
+      days: data.days,
+      status: "created",
+      paypal_order_id: data.paypalOrderId,
+    });
+    if (error) throw new Error(`Failed to record payment: ${error.message}`);
+    return;
+  }
+
+  const db = await readFile();
+  db.payments.unshift({
+    ...data,
+    id: localId(),
+    status: "created",
+    createdAt: new Date().toISOString(),
+  });
+  await writeFile(db);
+}
+
+export async function getPaymentByOrderId(
+  orderId: string,
+): Promise<StoredPayment | null> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("payments")
+      .select("*")
+      .eq("paypal_order_id", orderId)
+      .maybeSingle();
+    if (error) throw new Error(`Failed to load payment: ${error.message}`);
+    return data ? rowToPayment(data as Record<string, unknown>) : null;
+  }
+
+  return (await readFile()).payments.find((p) => p.paypalOrderId === orderId) ?? null;
+}
+
+export interface GrantResult {
+  granted: boolean;
+  alreadyPaid: boolean;
+  payment: StoredPayment | null;
+}
+
+// Flip 'created' → 'paid' and grant the add-on. Returns granted=false when the
+// row was already 'paid' (a retry / double-click), so the caller can respond
+// success WITHOUT extending the add-on a second time.
+//
+// The status guard is a compare-and-set: the UPDATE only matches rows still in
+// 'created', so two concurrent captures cannot both grant.
+export async function markPaymentPaidAndGrant(
+  orderId: string,
+  info: { captureId: string; payerEmail?: string | null },
+): Promise<GrantResult> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("payments")
+      .update({
+        status: "paid",
+        paypal_capture_id: info.captureId,
+        payer_email: info.payerEmail ?? null,
+        paid_at: new Date().toISOString(),
+      })
+      .eq("paypal_order_id", orderId)
+      .eq("status", "created") // ← compare-and-set: only a 'created' row wins
+      .select();
+    if (error) throw new Error(`Failed to mark payment paid: ${error.message}`);
+
+    const rows = (data ?? []) as Record<string, unknown>[];
+    if (rows.length === 0) {
+      // Someone else already promoted it (or it doesn't exist). Do NOT grant.
+      const existing = await getPaymentByOrderId(orderId);
+      return {
+        granted: false,
+        alreadyPaid: existing?.status === "paid",
+        payment: existing,
+      };
+    }
+
+    const payment = rowToPayment(rows[0]);
+    await grantAddon(payment.jobId, payment.addon, payment.days);
+    return { granted: true, alreadyPaid: false, payment };
+  }
+
+  const db = await readFile();
+  const payment = db.payments.find((p) => p.paypalOrderId === orderId);
+  if (!payment) return { granted: false, alreadyPaid: false, payment: null };
+  if (payment.status === "paid") {
+    return { granted: false, alreadyPaid: true, payment };
+  }
+  payment.status = "paid";
+  payment.paypalCaptureId = info.captureId;
+  payment.payerEmail = info.payerEmail ?? null;
+  payment.paidAt = new Date().toISOString();
+
+  const job = db.pendingJobs.find((j) => j.id === payment.jobId);
+  if (job) {
+    const field = ADDON_FIELD[payment.addon];
+    if (field) job[field] = extendDeadline(job[field], payment.days);
+  }
+  await writeFile(db);
+  return { granted: true, alreadyPaid: false, payment };
+}
+
+export async function markPaymentFailed(
+  orderId: string,
+  note: string,
+): Promise<void> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    // Only a still-'created' row may fail — never downgrade a paid charge.
+    const { error } = await supabase
+      .from("payments")
+      .update({ status: "failed", error_note: note.slice(0, 500) })
+      .eq("paypal_order_id", orderId)
+      .eq("status", "created");
+    if (error) console.error("Failed to mark payment failed:", error.message);
+    return;
+  }
+
+  const db = await readFile();
+  const payment = db.payments.find((p) => p.paypalOrderId === orderId);
+  if (payment && payment.status === "created") {
+    payment.status = "failed";
+    payment.errorNote = note.slice(0, 500);
+  }
+  await writeFile(db);
+}
+
+// Extend the add-on deadline on a job. Called ONLY from a confirmed payment.
+async function grantAddon(
+  jobId: string,
+  addon: string,
+  days: number,
+): Promise<void> {
+  const column = ADDON_COLUMN[addon];
+  if (!column) throw new Error(`Unknown add-on: ${addon}`);
+
+  const supabase = getSupabase();
+  if (!supabase) return; // local mode handled inline by the caller
+
+  const { data, error } = await supabase
+    .from("jobs")
+    .select(column)
+    .eq("id", jobId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to read job for add-on: ${error.message}`);
+
+  const current = (data as Record<string, string | null> | null)?.[column] ?? null;
+  const next = extendDeadline(current, days);
+
+  const { error: updateError } = await supabase
+    .from("jobs")
+    .update({ [column]: next })
+    .eq("id", jobId);
+  if (updateError) {
+    throw new Error(`Failed to grant add-on: ${updateError.message}`);
+  }
+}
+
+// Every payment, newest first (Admin ledger).
+export async function listPayments(): Promise<StoredPayment[]> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("payments")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(`Failed to load payments: ${error.message}`);
+    return (data ?? []).map(rowToPayment);
+  }
+
+  return (await readFile()).payments;
 }
 
 // Jobs posted by a specific employer (for their dashboard).

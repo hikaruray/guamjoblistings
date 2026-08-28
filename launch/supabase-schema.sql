@@ -14,8 +14,18 @@ create table if not exists public.jobs (
   salary      text not null,
   email       text not null,           -- employer contact / where applications go
   description text not null,
+  -- Status values MUST match JobStatus in src/lib/store.ts.
+  -- 'closed' = the employer marked the role filled/ended (close-job route).
+  -- The constraint is named explicitly so it matches the name used by
+  -- supabase-addons-migration.sql, which repairs this same constraint on
+  -- databases created before 'closed' was added.
   status      text not null default 'pending'
-              check (status in ('pending', 'approved', 'rejected')),
+              constraint jobs_status_check
+              check (status in ('pending', 'approved', 'rejected', 'closed')),
+  -- Why the posting was not approved, shown to the employer on their dashboard.
+  -- Written by setJobStatus(), cleared by updateJob() (src/lib/store.ts).
+  -- Nullable: NULL = no rejection reason.
+  rejection_reason text,
   created_at  timestamptz not null default now()
 );
 

@@ -26,6 +26,7 @@ export interface Job {
   salary: string;
   postedAt: string; // ISO date
   featured: boolean;
+  urgent?: boolean; // paid "Urgent Hiring" badge (add-on), time-boxed in the DB
   description: string;
   responsibilities: string[];
   requirements: string[];

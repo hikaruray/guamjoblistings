@@ -1,4 +1,4 @@
-import { listApplications, listPendingJobs } from "@/lib/store";
+import { listApplications, listPendingJobs, listPayments } from "@/lib/store";
 import JobActions from "./JobActions";
 
 // Always read the latest data (no caching) so new submissions show immediately.
@@ -17,9 +17,15 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 export default async function AdminPage() {
-  const [applications, pendingJobs] = await Promise.all([
+  const [applications, pendingJobs, payments] = await Promise.all([
     listApplications(),
     listPendingJobs(),
+    // Never let a payments-table read take the whole Admin page down (e.g. the
+    // add-ons migration hasn't been run yet).
+    listPayments().catch((err) => {
+      console.error("Failed to load payments:", err);
+      return [];
+    }),
   ]);
 
   const now = Date.now();
@@ -56,6 +62,39 @@ export default async function AdminPage() {
     ? appsForEmployerJobs / liveJobs.length
     : 0;
 
+  // ── Revenue ──────────────────────────────────────────────────────────
+  // Only 'paid' rows are money. 'created' rows are checkouts the buyer never
+  // finished; 'failed' rows were declined — neither is revenue, and neither
+  // granted an add-on.
+  const paidPayments = payments.filter((p) => p.status === "paid");
+  const revenueCents = paidPayments.reduce((sum, p) => sum + p.amountCents, 0);
+  const revenue30Cents = paidPayments
+    .filter((p) => daysAgo(p.paidAt ?? p.createdAt) <= 30)
+    .reduce((sum, p) => sum + p.amountCents, 0);
+  const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+  const payingEmployers = new Set(paidPayments.map((p) => p.userId ?? p.jobId)).size;
+  const abandoned = payments.filter((p) => p.status === "created").length;
+  const failed = payments.filter((p) => p.status === "failed").length;
+
+  // Job title lookup so the ledger reads as names, not uuids.
+  const jobTitleById = new Map(pendingJobs.map((j) => [j.id, j]));
+
+  const ADDON_LABEL: Record<string, string> = {
+    featured: "Featured",
+    urgent: "Urgent badge",
+    extension: "Extension",
+  };
+  const PAYMENT_STYLE: Record<string, string> = {
+    paid: "bg-emerald-100 text-emerald-700",
+    created: "bg-slate-100 text-slate-500",
+    failed: "bg-rose-100 text-rose-700",
+  };
+  const PAYMENT_LABEL: Record<string, string> = {
+    paid: "Paid",
+    created: "Not completed",
+    failed: "Failed",
+  };
+
   // Most applied-to listings (real + sample), highest first.
   const topJobs = [...countByPublicId.entries()]
     .map(([publicId, count]) => {
@@ -90,7 +129,16 @@ export default async function AdminPage() {
         <Stat label="Employers" value={employers} />
         <Stat label="Applicants" value={applicants} />
         <Stat label="Applications" value={applications.length} />
-        <Stat label="Revenue" value="$0.00" note="add-ons not enabled yet" money />
+        <Stat
+          label="Revenue"
+          value={usd(revenueCents)}
+          note={
+            payments.length === 0
+              ? "no add-on purchases yet"
+              : `${usd(revenue30Cents)} in last 30d`
+          }
+          money
+        />
       </div>
 
       {/* ── Matching ─────────────────────────────────────────────── */}
@@ -213,6 +261,108 @@ export default async function AdminPage() {
         </table>
       </div>
 
+      {/* ── Payments (add-on purchases) ──────────────────────────── */}
+      <h2 className="mt-10 text-lg font-bold text-slate-900">
+        Payments — add-on purchases
+      </h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Every PayPal checkout, including ones that were never completed. Only
+        <span className="font-semibold text-emerald-700"> Paid</span> rows are
+        revenue and only those grant the add-on.
+        {(abandoned > 0 || failed > 0) &&
+          ` ${abandoned} not completed, ${failed} failed.`}
+      </p>
+      <div className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Stat label="Total revenue" value={usd(revenueCents)} money />
+        <Stat label="Revenue (30d)" value={usd(revenue30Cents)} money />
+        <Stat label="Paying employers" value={payingEmployers} />
+        <Stat
+          label="Completed purchases"
+          value={paidPayments.length}
+          note={`${payments.length} checkouts started`}
+        />
+      </div>
+      <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-50 text-slate-500">
+            <tr>
+              <th className="px-4 py-3 font-medium">Date</th>
+              <th className="px-4 py-3 font-medium">Job</th>
+              <th className="px-4 py-3 font-medium">Add-on</th>
+              <th className="px-4 py-3 font-medium">Amount</th>
+              <th className="px-4 py-3 font-medium">Payer</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">PayPal ref</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {payments.length === 0 ? (
+              <EmptyRow
+                span={7}
+                text="No add-on purchases yet. Paid add-ons appear here once PayPal is enabled."
+              />
+            ) : (
+              payments.map((p) => {
+                const job = jobTitleById.get(p.jobId);
+                return (
+                  <tr key={p.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 whitespace-nowrap text-slate-500">
+                      {new Date(p.paidAt ?? p.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-medium text-slate-900">
+                        {job?.title ?? "(job removed)"}
+                      </span>
+                      {job?.company && (
+                        <span className="block text-xs text-slate-400">
+                          {job.company}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {ADDON_LABEL[p.addon] ?? p.addon}
+                      <span className="block text-xs text-slate-400">
+                        {p.days} days
+                      </span>
+                    </td>
+                    <td
+                      className={`px-4 py-3 font-semibold ${
+                        p.status === "paid" ? "text-emerald-700" : "text-slate-400"
+                      }`}
+                    >
+                      {usd(p.amountCents)}
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">
+                      {p.payerEmail ?? "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          PAYMENT_STYLE[p.status] ?? "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {PAYMENT_LABEL[p.status] ?? p.status}
+                      </span>
+                      {p.errorNote && (
+                        <span
+                          className="block max-w-[16rem] truncate text-xs text-slate-400"
+                          title={p.errorNote}
+                        >
+                          {p.errorNote}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-400">
+                      {p.paypalCaptureId ?? p.paypalOrderId}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
       {/* Applications */}
       <h2 className="mt-10 text-lg font-bold text-slate-900">Applications</h2>
       <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -259,8 +409,8 @@ export default async function AdminPage() {
 
       <p className="mt-4 text-xs text-slate-400">
         Live data from the production database. This page is protected by owner
-        login. Revenue stays $0 until paid add-ons (Featured / Urgent) are turned
-        on.
+        login. Paid add-ons are live only when PayPal credentials are set in the
+        environment; until then the Promote buttons stay hidden and revenue is $0.
       </p>
     </div>
   );

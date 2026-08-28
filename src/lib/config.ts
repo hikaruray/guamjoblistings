@@ -18,3 +18,10 @@ export const OWNER_COPY_EMAIL = "ynishihira@gmail.com";
 
 // Verified sending address (set up at launch with the domain's DNS records).
 export const FROM_EMAIL = "Guam Job Listings <applications@guamjoblisting.com>";
+
+// Public PayPal client id (safe to expose to the browser). When empty, the paid
+// add-on UI hides itself and the site behaves exactly as it does today (Phase 0
+// = every listing free). The secret lives only on the server (see lib/paypal.ts).
+// NEXT_PUBLIC_ vars are inlined at build time.
+export const PAYPAL_CLIENT_ID = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID ?? "";
+export const PAYPAL_ENABLED = PAYPAL_CLIENT_ID.length > 0;

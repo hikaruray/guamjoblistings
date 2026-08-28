@@ -2,8 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
 import { listJobsByUser, applicationCountsForJobs } from "@/lib/store";
+import { addonViews } from "@/lib/addons";
+import { isPaypalConfigured } from "@/lib/paypal";
+import { PAYPAL_ENABLED } from "@/lib/config";
 import LogoutButton from "@/components/LogoutButton";
 import DashboardJobActions from "./DashboardJobActions";
+import PromoteJob from "./PromoteJob";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +53,13 @@ export default async function EmployerDashboardPage() {
   // row id. Count against that or every job shows 0 applicants.
   const counts = await applicationCountsForJobs(jobs.map((j) => `p_${j.id}`));
   const totalApplicants = Object.values(counts).reduce((a, b) => a + b, 0);
+
+  // Paid add-ons appear only when PayPal is fully configured (server secret AND
+  // public client id). Until the owner sets those, the site stays exactly as it
+  // is today: Phase 0, every listing free, no payment UI anywhere.
+  const addonsEnabled = isPaypalConfigured() && PAYPAL_ENABLED;
+  // Prices are resolved on the server and passed down for DISPLAY only.
+  const addons = addonsEnabled ? addonViews() : [];
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10">
@@ -127,6 +138,17 @@ export default async function EmployerDashboardPage() {
                     </div>
                   )}
                   <DashboardJobActions id={job.id} status={job.status} />
+                  {/* Only a live listing can be promoted — mirrors the server
+                      check in /api/paypal/create-order. */}
+                  {addonsEnabled && job.status === "approved" && (
+                    <PromoteJob
+                      jobId={job.id}
+                      addons={addons}
+                      featuredUntil={job.featuredUntil ?? null}
+                      urgentUntil={job.urgentUntil ?? null}
+                      expiresAt={job.expiresAt ?? null}
+                    />
+                  )}
                 </div>
               );
             })}
