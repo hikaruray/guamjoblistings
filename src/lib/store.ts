@@ -52,7 +52,8 @@ export interface PendingJob {
   // and needs no scheduled job.
   featuredUntil?: string | null;
   urgentUntil?: string | null;
-  expiresAt?: string | null; // null = never auto-expires (current default)
+  expiresAt?: string | null; // when the listing drops off the board
+  expiryNotifiedAt?: string | null; // when we last warned the employer it is due
 }
 
 // A single PayPal charge. Written as 'created' when the order is opened and
@@ -61,7 +62,7 @@ export interface StoredPayment {
   id: string;
   jobId: string;
   userId?: string | null;
-  addon: string; // "featured" | "urgent" | "extension"
+  addon: string; // "featured" | "urgent" (legacy rows may say "extension")
   amountCents: number;
   currency: string;
   days: number;
@@ -111,6 +112,7 @@ function rowToPendingJob(row: Record<string, unknown>): PendingJob {
     featuredUntil: (row.featured_until as string) ?? null,
     urgentUntil: (row.urgent_until as string) ?? null,
     expiresAt: (row.expires_at as string) ?? null,
+    expiryNotifiedAt: (row.expiry_notified_at as string) ?? null,
   };
 }
 
@@ -312,6 +314,17 @@ export async function listPendingJobs(): Promise<PendingJob[]> {
   return (await readFile()).pendingJobs;
 }
 
+// How long an approved listing stays on the board before it needs renewing.
+// Owner decision, 2026-08-29. Before this, expires_at was always null and a
+// posting stayed up forever — which is how the old WordPress board ended up
+// showing 2024 vacancies as if they were still open. Renewal is free, from the
+// employer dashboard; the paid "extension" add-on was retired the same day.
+export const LISTING_DAYS = 30;
+
+export function listingExpiryFromNow(): string {
+  return new Date(Date.now() + LISTING_DAYS * 86_400_000).toISOString();
+}
+
 export async function setJobStatus(
   jobId: string,
   status: JobStatus,
@@ -319,13 +332,20 @@ export async function setJobStatus(
 ): Promise<void> {
   // Keep a rejection reason only while the job is rejected; clear it otherwise.
   const reason = status === "rejected" ? rejectionReason ?? null : null;
+  // Approval starts the clock. Reopening a closed posting restarts it too, so a
+  // role that comes back is visible for a full window rather than expiring the
+  // moment it reappears.
+  const expiry = status === "approved" ? listingExpiryFromNow() : undefined;
   const supabase = getSupabase();
 
   if (supabase) {
-    const { error } = await supabase
-      .from("jobs")
-      .update({ status, rejection_reason: reason })
-      .eq("id", jobId);
+    const patch: Record<string, unknown> = { status, rejection_reason: reason };
+    if (expiry) {
+      patch.expires_at = expiry;
+      // A fresh window deserves a fresh warning.
+      patch.expiry_notified_at = null;
+    }
+    const { error } = await supabase.from("jobs").update(patch).eq("id", jobId);
     if (error) throw new Error(`Failed to update job status: ${error.message}`);
     return;
   }
@@ -335,6 +355,10 @@ export async function setJobStatus(
   if (job) {
     job.status = status;
     job.rejectionReason = reason;
+    if (expiry) {
+      job.expiresAt = expiry;
+      job.expiryNotifiedAt = null;
+    }
   }
   await writeFile(db);
 }
@@ -467,17 +491,16 @@ function extendDeadline(current: string | null | undefined, days: number): strin
   return new Date(base + days * 86_400_000).toISOString();
 }
 
-// The column each add-on extends.
-const ADDON_COLUMN: Record<string, "featured_until" | "urgent_until" | "expires_at"> = {
+// The column each add-on extends. expires_at is no longer one of them: it is
+// set on approval and renewed free by the employer (see LISTING_DAYS).
+const ADDON_COLUMN: Record<string, "featured_until" | "urgent_until"> = {
   featured: "featured_until",
   urgent: "urgent_until",
-  extension: "expires_at",
 };
 
-const ADDON_FIELD: Record<string, "featuredUntil" | "urgentUntil" | "expiresAt"> = {
+const ADDON_FIELD: Record<string, "featuredUntil" | "urgentUntil"> = {
   featured: "featuredUntil",
   urgent: "urgentUntil",
-  extension: "expiresAt",
 };
 
 export async function createPayment(
@@ -684,4 +707,87 @@ export async function listJobsByUser(userId: string): Promise<PendingJob[]> {
   }
 
   return (await readFile()).pendingJobs.filter((j) => j.userId === userId);
+}
+
+// Free renewal — the employer's own escape hatch from the 30-day window.
+// Deliberately not an add-on: charging to keep a listing alive is what the
+// retired "extension" did, and it made the paid option a tax on staying
+// visible rather than a way to stand out.
+//
+// Ownership is checked by the caller; this only touches the one row.
+export async function renewJobListing(jobId: string): Promise<string> {
+  const expiry = listingExpiryFromNow();
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { error } = await supabase
+      .from("jobs")
+      .update({ expires_at: expiry, expiry_notified_at: null })
+      .eq("id", jobId)
+      .eq("status", "approved"); // never resurrect a rejected or closed posting
+    if (error) throw new Error(`Failed to renew listing: ${error.message}`);
+    return expiry;
+  }
+
+  const db = await readFile();
+  const job = db.pendingJobs.find((j) => j.id === jobId);
+  if (job && job.status === "approved") {
+    job.expiresAt = expiry;
+    job.expiryNotifiedAt = null;
+  }
+  await writeFile(db);
+  return expiry;
+}
+
+// Approved listings whose expiry falls inside the next `days` days and that we
+// have not warned about since their current window began. Used by the daily
+// cron that emails employers before a posting drops off.
+export async function listingsDueForExpiryNotice(
+  days: number,
+): Promise<PendingJob[]> {
+  const now = Date.now();
+  const horizon = new Date(now + days * 86_400_000).toISOString();
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("*")
+      .eq("status", "approved")
+      .is("expiry_notified_at", null)
+      .not("expires_at", "is", null)
+      .lte("expires_at", horizon)
+      .gt("expires_at", new Date(now).toISOString());
+    if (error) throw new Error(`Failed to load expiring jobs: ${error.message}`);
+    return (data ?? []).map((row) => rowToPendingJob(row as Record<string, unknown>));
+  }
+
+  const db = await readFile();
+  return db.pendingJobs.filter(
+    (j) =>
+      j.status === "approved" &&
+      !j.expiryNotifiedAt &&
+      j.expiresAt != null &&
+      j.expiresAt <= horizon &&
+      j.expiresAt > new Date(now).toISOString(),
+  );
+}
+
+export async function markExpiryNoticeSent(jobId: string): Promise<void> {
+  const sentAt = new Date().toISOString();
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { error } = await supabase
+      .from("jobs")
+      .update({ expiry_notified_at: sentAt })
+      .eq("id", jobId);
+    if (error) throw new Error(`Failed to record notice: ${error.message}`);
+    return;
+  }
+
+  const db = await readFile();
+  const job = db.pendingJobs.find((j) => j.id === jobId);
+  if (job) job.expiryNotifiedAt = sentAt;
+  await writeFile(db);
 }

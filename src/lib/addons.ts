@@ -24,9 +24,14 @@
 
 import "server-only";
 
-export type AddonId = "featured" | "urgent" | "extension";
+// "extension" was removed on 2026-08-29. It extended jobs.expires_at, but every
+// listing had expires_at = null (= never expires), so buying it SET an expiry
+// where there had been none: $10 to make your posting disappear in 30 days.
+// Listings now expire after 30 days by default and are renewed free from the
+// employer dashboard, so there is nothing left to sell here.
+export type AddonId = "featured" | "urgent";
 
-export const ADDON_IDS: AddonId[] = ["featured", "urgent", "extension"];
+export const ADDON_IDS: AddonId[] = ["featured", "urgent"];
 
 export interface Addon {
   id: AddonId;
@@ -84,13 +89,6 @@ export function addonCatalog(): Record<AddonId, Addon> {
       blurb: 'A bright "Urgent Hiring" badge so jobseekers notice you first.',
       priceCents: priceCents("ADDON_PRICE_URGENT", 10),
       days: days("ADDON_DAYS_URGENT", 30),
-    },
-    extension: {
-      id: "extension",
-      name: "Listing Extension",
-      blurb: "Keep your posting live for another 30 days.",
-      priceCents: priceCents("ADDON_PRICE_EXTENSION", 10),
-      days: days("ADDON_DAYS_EXTENSION", 30),
     },
   };
 }

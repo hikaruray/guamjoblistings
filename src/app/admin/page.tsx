@@ -82,7 +82,7 @@ export default async function AdminPage() {
   const ADDON_LABEL: Record<string, string> = {
     featured: "Featured",
     urgent: "Urgent badge",
-    extension: "Extension",
+    extension: "Extension", // legacy: add-on retired 2026-08-29
   };
   const PAYMENT_STYLE: Record<string, string> = {
     paid: "bg-emerald-100 text-emerald-700",

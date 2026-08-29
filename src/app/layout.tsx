@@ -24,7 +24,10 @@ export const metadata: Metadata = {
     title: "Guam Job Listings | Find Jobs & Hire in Guam",
     description:
       "The island's local job board. Find your next job or post an opening today.",
-    url: "https://www.guamjoblisting.com",
+    // Resolved against metadataBase (= NEXT_PUBLIC_SITE_URL). This used to be
+    // a literal www.guamjoblisting.com, which quietly overrode metadataBase and
+    // advertised the old WordPress domain as the canonical URL.
+    url: "/",
     siteName: "Guam Job Listings",
     locale: "en_US",
     type: "website",

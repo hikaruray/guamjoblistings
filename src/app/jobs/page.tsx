@@ -100,9 +100,29 @@ export default async function JobsPage({
         </div>
       ) : (
         <div className="mt-10 rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <p className="text-slate-500">
-            No jobs match your search. Try a different keyword or category.
-          </p>
+          {allJobs.length === 0 ? (
+            // Nothing is posted at all — say so plainly rather than implying
+            // the search was too narrow.
+            <>
+              <p className="text-3xl">🌴</p>
+              <p className="mt-3 font-semibold text-slate-900">
+                No openings posted yet
+              </p>
+              <p className="mt-2 text-slate-500">
+                This board is new. Employers can post an opening for free.
+              </p>
+              <Link
+                href="/post-a-job"
+                className="mt-6 inline-block rounded-lg bg-cyan-600 px-6 py-3 font-semibold text-white transition hover:bg-cyan-700"
+              >
+                Post a job — free
+              </Link>
+            </>
+          ) : (
+            <p className="text-slate-500">
+              No jobs match your search. Try a different keyword or category.
+            </p>
+          )}
         </div>
       )}
     </div>

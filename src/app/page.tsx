@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CATEGORIES, getFeaturedJobs, JOBS } from "@/lib/jobs";
+import { CATEGORIES } from "@/lib/jobs";
+import { getPublicJobs } from "@/lib/public-jobs";
 import JobCard from "@/components/JobCard";
 
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -10,8 +11,11 @@ const CATEGORY_EMOJI: Record<string, string> = {
   "General & Other": "💼",
 };
 
-export default function Home() {
-  const featured = getFeaturedJobs();
+export default async function Home() {
+  // Real, approved postings only. The placeholder listings this page used to
+  // count and feature were deleted on 2026-08-29.
+  const jobs = await getPublicJobs();
+  const featured = jobs.filter((j) => j.featured).slice(0, 6);
 
   return (
     <>
@@ -46,7 +50,9 @@ export default function Home() {
           </form>
 
           <div className="mt-6 flex items-center justify-center gap-6 text-sm text-cyan-50">
-            <span>{JOBS.length} open positions</span>
+            <span>
+              {jobs.length === 1 ? "1 open position" : jobs.length + " open positions"}
+            </span>
             <span aria-hidden>•</span>
             <span>{CATEGORIES.length} categories</span>
           </div>
@@ -70,23 +76,55 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Featured jobs */}
-      <section className="mx-auto max-w-6xl px-4 pb-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-900">Featured Jobs</h2>
-          <Link
-            href="/jobs"
-            className="text-sm font-medium text-cyan-600 hover:text-cyan-700"
-          >
-            View all jobs →
-          </Link>
-        </div>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {featured.map((job) => (
-            <JobCard key={job.id} job={job} />
-          ))}
-        </div>
-      </section>
+      {/* Featured jobs. An honest empty state beats a grid of nothing — and
+          beats the placeholder listings that used to fill it. */}
+      {jobs.length > 0 ? (
+        <section className="mx-auto max-w-6xl px-4 pb-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-900">
+              {featured.length > 0 ? "Featured Jobs" : "Latest Jobs"}
+            </h2>
+            <Link
+              href="/jobs"
+              className="text-sm font-medium text-cyan-600 hover:text-cyan-700"
+            >
+              View all jobs →
+            </Link>
+          </div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {(featured.length > 0 ? featured : jobs.slice(0, 6)).map((job) => (
+              <JobCard key={job.id} job={job} />
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section className="mx-auto max-w-3xl px-4 pb-4">
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
+            <p className="text-3xl">🌴</p>
+            <h2 className="mt-3 text-xl font-bold text-slate-900">
+              No openings posted yet
+            </h2>
+            <p className="mt-2 text-slate-600">
+              This board is new. Every listing here will be a real job on Guam,
+              posted by the employer hiring for it.
+            </p>
+            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Link
+                href="/post-a-job"
+                className="rounded-lg bg-cyan-600 px-6 py-3 font-semibold text-white transition hover:bg-cyan-700"
+              >
+                Hiring? Post a job — free
+              </Link>
+              <Link
+                href="/blog"
+                className="rounded-lg px-6 py-3 font-semibold text-cyan-700 ring-1 ring-cyan-200 transition hover:bg-cyan-50"
+              >
+                Read our Guam work guides
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* How it works */}
       <section className="mx-auto max-w-6xl px-4 py-12">

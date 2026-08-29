@@ -137,7 +137,11 @@ export default async function EmployerDashboardPage() {
                       </p>
                     </div>
                   )}
-                  <DashboardJobActions id={job.id} status={job.status} />
+                  <DashboardJobActions
+                    id={job.id}
+                    status={job.status}
+                    expiresAt={job.expiresAt ?? null}
+                  />
                   {/* Only a live listing can be promoted — mirrors the server
                       check in /api/paypal/create-order. */}
                   {addonsEnabled && job.status === "approved" && (
