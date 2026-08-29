@@ -133,8 +133,21 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, delivered: false });
   }
 
+  // The application is already in the database by this point. Email is how we
+  // notify people about it, not how we record it, so a send failure must not be
+  // reported to the applicant as a failed application.
+  //
+  // It used to return 500 "Could not send your application. Please try again."
+  // Following that advice hit the duplicate check and got back "You have
+  // already applied to this job." — two contradictory messages for one
+  // application that had in fact been saved both times. Note also that the
+  // branch above, for when RESEND_API_KEY is unset, already returns ok with
+  // delivered:false; this path simply now agrees with it.
+  const resend = new Resend(apiKey);
+  let delivered = false;
+  let copySent = false;
+
   try {
-    const resend = new Resend(apiKey);
     await resend.emails.send({
       from: FROM_EMAIL,
       to: job.contactEmail, // employer receives the application directly
@@ -143,24 +156,27 @@ export async function POST(request: Request) {
       subject,
       text,
     });
-    // Best-effort: the application is already saved and sent to the employer, so
-    // a failure to send the applicant's copy must not fail the request.
-    try {
-      await resend.emails.send({
-        from: FROM_EMAIL,
-        to: email,
-        subject: applicantSubject,
-        text: applicantText,
-      });
-    } catch (err) {
-      console.error("Failed to send applicant confirmation:", err);
-    }
-    return Response.json({ ok: true, delivered: true });
+    delivered = true;
   } catch (err) {
-    console.error("Failed to send application email:", err);
-    return Response.json(
-      { error: "Could not send your application. Please try again." },
-      { status: 500 },
+    // Loud on purpose: this is the owner's only signal that an application is
+    // sitting in the admin dashboard which nobody has been told about.
+    console.error(
+      `[APPLICATION NOT DELIVERED] job=${job.id} "${job.title}" applicant=${email} — the application IS saved; notify the employer manually.`,
+      err,
     );
   }
+
+  try {
+    await resend.emails.send({
+      from: FROM_EMAIL,
+      to: email,
+      subject: applicantSubject,
+      text: applicantText,
+    });
+    copySent = true;
+  } catch (err) {
+    console.error("Failed to send applicant confirmation:", err);
+  }
+
+  return Response.json({ ok: true, delivered, copySent });
 }

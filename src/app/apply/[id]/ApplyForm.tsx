@@ -15,6 +15,7 @@ export default function ApplyForm({
   applicantEmail?: string;
 }) {
   const [submitted, setSubmitted] = useState(false);
+  const [copySent, setCopySent] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,10 +33,13 @@ export default function ApplyForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobId, ...data }),
       });
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
         throw new Error(json.error ?? "Something went wrong.");
       }
+      // The application is recorded either way; this only decides whether we
+      // are entitled to claim we emailed the applicant a copy.
+      setCopySent(Boolean(json.copySent));
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -54,8 +58,10 @@ export default function ApplyForm({
           </h1>
           <p className="mt-2 text-slate-600">
             Your application for <strong>{jobTitle}</strong> at{" "}
-            <strong>{company}</strong> has been submitted — we&apos;ve emailed
-            you a copy for your records.
+            <strong>{company}</strong> has been submitted
+            {copySent
+              ? " — we've emailed you a copy for your records."
+              : ". You can see it any time on your applications page."}
           </p>
           <p className="mt-2 text-sm text-slate-500">
             {company} will contact you directly if you&apos;re a match.
