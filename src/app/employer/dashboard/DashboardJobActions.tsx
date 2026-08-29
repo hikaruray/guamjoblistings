@@ -16,10 +16,14 @@ export default function DashboardJobActions({
   id,
   status,
   expiresAt,
+  promotable = false,
 }: {
   id: string;
   status: string;
   expiresAt?: string | null;
+  // Only true when add-ons can actually be bought (PayPal keys present on the
+  // server). Never advertise a checkout that answers 503.
+  promotable?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<Action | null>(null);
@@ -49,7 +53,7 @@ export default function DashboardJobActions({
         setErr(data.error || "Something went wrong. Please try again.");
         return;
       }
-      if (action === "renew") setDone("Renewed for another 30 days.");
+      if (action === "renew") setDone("renewed");
       router.refresh();
     } catch {
       setErr("Network error. Please try again.");
@@ -61,7 +65,7 @@ export default function DashboardJobActions({
   const left = status === "approved" && expiresAt ? daysLeft(expiresAt) : null;
   // Nudge harder as the window closes, but never hide the button — an employer
   // should be able to renew before we start warning them.
-  const urgent = left !== null && left <= 7;
+  const urgent = left !== null && left <= 3;
 
   return (
     <div className="mt-3 border-t border-slate-100 pt-3">
@@ -76,13 +80,22 @@ export default function DashboardJobActions({
             : `Live for ${left} more day${left === 1 ? "" : "s"}. Renewing is free.`}
         </p>
       )}
+      {/* Renewal is free and stays free. The upsell is for being seen first,
+          never for staying listed — that was the retired extension add-on. */}
+      {promotable && status === "approved" && (
+        <p className="mb-2 rounded-lg bg-cyan-50 px-3 py-2 text-xs text-cyan-800">
+          {done === "renewed" ? "Renewed. " : ""}Want it seen first? Feature it
+          or add an Urgent badge below — jobseekers see promoted roles at the
+          top of the board.
+        </p>
+      )}
       <div className="flex flex-wrap items-center justify-end gap-4">
         {err && (
           <span className="mr-auto text-xs font-medium text-rose-600">{err}</span>
         )}
-        {!err && done && (
+        {!err && done === "renewed" && (
           <span className="mr-auto text-xs font-medium text-emerald-600">
-            {done}
+            Renewed — live for another 10 days.
           </span>
         )}
         <Link
@@ -102,7 +115,7 @@ export default function DashboardJobActions({
                 : "text-slate-500 hover:text-slate-700"
             }`}
           >
-            {busy === "renew" ? "…" : "Renew 30 days"}
+            {busy === "renew" ? "…" : "Renew 10 days"}
           </button>
         )}
         {status === "closed" ? (

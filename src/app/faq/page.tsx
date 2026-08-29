@@ -65,9 +65,34 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
     q: "How long does a listing stay up?",
     a: (
       <>
-        Until you close it. There is no automatic expiry date, so a role stays
-        visible while you are still hiring. You can close it from your dashboard
-        the moment it is filled, and reopen it later if you need to.
+        10 days. We email you before it comes down, and renewing it for another
+        10 days is free and takes one click from your dashboard. If the role is
+        filled you do nothing and it comes down on its own.
+      </>
+    ),
+  },
+  {
+    q: "Why do listings expire at all?",
+    a: (
+      <>
+        So that what a jobseeker sees is something an employer confirmed
+        recently. A board that never expires anything fills up with roles that
+        were filled months ago, and people stop trusting all of it — which helps
+        nobody who is actually hiring.
+      </>
+    ),
+  },
+  {
+    q: "What do the paid options do?",
+    a: (
+      <>
+        They buy attention, never time on the board. A{" "}
+        <strong className="font-medium text-slate-800">Featured Listing</strong>{" "}
+        is pinned to the top of the job list and the homepage; an{" "}
+        <strong className="font-medium text-slate-800">Urgent badge</strong>{" "}
+        flags the role so jobseekers notice it first. Both are optional, bought
+        from your dashboard after a posting is live. Renewing stays free either
+        way.
       </>
     ),
   },

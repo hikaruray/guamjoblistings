@@ -27,8 +27,8 @@ import "server-only";
 // "extension" was removed on 2026-08-29. It extended jobs.expires_at, but every
 // listing had expires_at = null (= never expires), so buying it SET an expiry
 // where there had been none: $10 to make your posting disappear in 30 days.
-// Listings now expire after 30 days by default and are renewed free from the
-// employer dashboard, so there is nothing left to sell here.
+// Listings now expire after LISTING_DAYS by default and are renewed free from
+// the employer dashboard, so there is nothing left to sell here.
 export type AddonId = "featured" | "urgent";
 
 export const ADDON_IDS: AddonId[] = ["featured", "urgent"];

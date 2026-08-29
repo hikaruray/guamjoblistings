@@ -80,14 +80,23 @@ export default function HowItWorksPage() {
             you will see the reason in your dashboard, so you can fix it and
             resubmit rather than wonder what happened.
           </Step>
-          <Step n={4} title="Manage it from your dashboard">
-            Edit the posting, close it once the role is filled, or reopen it if
-            you need to hire again. Applications arrive by email as they come in.
+          <Step n={4} title="It runs for 10 days — renewing is free">
+            Short windows keep the board honest: what a jobseeker reads is
+            something an employer confirmed recently. We email you before yours
+            comes down, and renewing for another 10 days is one click and costs
+            nothing. If the role is filled, do nothing and it comes down on its
+            own.
           </Step>
-          <Step n={5} title="Optional: make it stand out">
-            Paid add-ons are available from your dashboard if you want a role
-            pinned to the top of the list or flagged as urgent. They are entirely
-            optional — a free posting appears on the board exactly the same way.
+          <Step n={5} title="Manage it from your dashboard">
+            Edit the posting, close it the moment the role is filled, or reopen
+            it if you need to hire again. Applications arrive by email as they
+            come in.
+          </Step>
+          <Step n={6} title="Optional: make it stand out">
+            Feature a role to pin it to the top of the job list and the homepage,
+            or add an Urgent badge so jobseekers notice it first. Both are bought
+            from your dashboard once the posting is live. They buy attention, not
+            time — staying on the board is always free.
           </Step>
         </ol>
         <Link

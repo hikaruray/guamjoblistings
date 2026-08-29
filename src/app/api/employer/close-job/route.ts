@@ -7,7 +7,7 @@ const ACTIONS: Action[] = ["close", "reopen", "renew"];
 // Employer manages their own posting.
 //   close  → status "closed"  (removed from the public listings)
 //   reopen → status "pending" (re-reviewed before it goes live again)
-//   renew  → another 30 days on the board, free
+//   renew  → another LISTING_DAYS on the board, free
 //
 // Renewal is deliberately free and deliberately here rather than in the paid
 // add-ons: charging to stay visible is what the retired "extension" add-on did,

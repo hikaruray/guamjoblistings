@@ -315,11 +315,15 @@ export async function listPendingJobs(): Promise<PendingJob[]> {
 }
 
 // How long an approved listing stays on the board before it needs renewing.
-// Owner decision, 2026-08-29. Before this, expires_at was always null and a
-// posting stayed up forever — which is how the old WordPress board ended up
-// showing 2024 vacancies as if they were still open. Renewal is free, from the
-// employer dashboard; the paid "extension" add-on was retired the same day.
-export const LISTING_DAYS = 30;
+// Owner decision, 2026-08-29: 10 days. Before this, expires_at was always null
+// and a posting stayed up forever — which is how the old WordPress board ended
+// up showing 2024 vacancies as if they were still open. A short window means
+// what a jobseeker sees is something an employer confirmed recently.
+//
+// Renewal is free, from the employer dashboard. The paid "extension" add-on was
+// retired the same day: paid options should buy prominence, never continued
+// existence.
+export const LISTING_DAYS = 10;
 
 export function listingExpiryFromNow(): string {
   return new Date(Date.now() + LISTING_DAYS * 86_400_000).toISOString();
@@ -709,7 +713,7 @@ export async function listJobsByUser(userId: string): Promise<PendingJob[]> {
   return (await readFile()).pendingJobs.filter((j) => j.userId === userId);
 }
 
-// Free renewal — the employer's own escape hatch from the 30-day window.
+// Free renewal — the employer's own escape hatch from the listing window.
 // Deliberately not an add-on: charging to keep a listing alive is what the
 // retired "extension" did, and it made the paid option a tax on staying
 // visible rather than a way to stand out.

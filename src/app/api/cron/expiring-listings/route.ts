@@ -1,5 +1,7 @@
 import { Resend } from "resend";
 import { FROM_EMAIL, SITE_URL } from "@/lib/config";
+import { addonViews } from "@/lib/addons";
+import { isPaypalConfigured } from "@/lib/paypal";
 import {
   listingsDueForExpiryNotice,
   markExpiryNoticeSent,
@@ -19,8 +21,9 @@ import {
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Warn this many days before the listing expires.
-const WARN_WITHIN_DAYS = 5;
+// Warn this many days before the listing expires. Kept well inside the 10-day
+// window so the email lands while the posting is still worth renewing.
+const WARN_WITHIN_DAYS = 3;
 
 function authorised(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -56,6 +59,18 @@ export async function GET(request: Request) {
     return Response.json({ ok: true, checked: due.length, sent: 0 });
   }
 
+  // Only mention paid options when they can actually be bought. Advertising a
+  // checkout that answers 503 is worse than staying quiet about it.
+  const promo = isPaypalConfigured()
+    ? [
+        "",
+        "While you are there: renewing keeps the role listed, and a paid option keeps it seen.",
+        ...addonViews().map(
+          (a) => `  ${a.name} — ${a.priceLabel} for ${a.days} days. ${a.blurb}`,
+        ),
+      ]
+    : [];
+
   const resend = new Resend(apiKey);
   let sent = 0;
   const failed: string[] = [];
@@ -78,6 +93,7 @@ export async function GET(request: Request) {
       `Renewing keeps it live for another ${LISTING_DAYS} days. If the role is filled you do not need to do anything — it will come down on its own.`,
       ``,
       `Postings expire so that jobseekers browsing the board are looking at roles that are genuinely open.`,
+      ...promo,
       ``,
       `— Guam Job Listings`,
     ].join("\n");
