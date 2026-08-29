@@ -151,7 +151,6 @@ export default async function EmployerDashboardPage() {
                       addons={addons}
                       featuredUntil={job.featuredUntil ?? null}
                       urgentUntil={job.urgentUntil ?? null}
-                      expiresAt={job.expiresAt ?? null}
                     />
                   )}
                 </div>

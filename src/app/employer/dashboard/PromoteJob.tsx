@@ -10,7 +10,6 @@ export interface PromoteJobProps {
   addons: AddonView[]; // priced on the server; shown here for display only
   featuredUntil: string | null;
   urgentUntil: string | null;
-  expiresAt: string | null;
 }
 
 function isActive(until: string | null): boolean {
@@ -30,7 +29,6 @@ export default function PromoteJob({
   addons,
   featuredUntil,
   urgentUntil,
-  expiresAt,
 }: PromoteJobProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -109,12 +107,14 @@ export default function PromoteJob({
             Urgent until {formatDate(urgentUntil!)}
           </span>
         )}
-        {expiresAt && (
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-            Listed until {formatDate(expiresAt)}
-          </span>
-        )}
-        {!featuredOn && !urgentOn && !expiresAt && (
+        {/* The listing's own expiry used to be shown here, alongside the paid
+            badges, as though it were one of them. It stopped being an add-on
+            on 2026-08-29: every approved posting now gets a free 10-day window
+            that the employer renews for nothing, and the countdown sits right
+            above this box. Leaving it here made a free window look like
+            something you had bought — and since every approved job now has
+            one, the "no add-ons active" line below could never appear. */}
+        {!featuredOn && !urgentOn && (
           <span className="text-xs text-slate-400">No add-ons active</span>
         )}
 
