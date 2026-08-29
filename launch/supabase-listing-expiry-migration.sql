@@ -25,7 +25,7 @@ update public.jobs
  where status = 'approved'
    and expires_at is null;
 
--- 3. The daily cron filters on these three columns.
+-- 3. The daily cron filters on status + expires_at; index them together.
 create index if not exists jobs_expiry_sweep_idx
   on public.jobs (status, expires_at)
   where expires_at is not null;
