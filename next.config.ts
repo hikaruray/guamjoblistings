@@ -144,6 +144,25 @@ const nextConfig: NextConfig = {
         destination: "/post-a-job",
         permanent: true,
       },
+      {
+        // WordPress's "post a job" form lived here.
+        source: "/add-listing",
+        destination: "/post-a-job",
+        permanent: true,
+      },
+      {
+        // WordPress's membership/plan page. Pricing now lives on the posting
+        // form, so that is the honest destination rather than the homepage.
+        source: "/memberships",
+        destination: "/post-a-job",
+        permanent: true,
+      },
+      {
+        // WooCommerce's account page → the employer sign-in that replaced it.
+        source: "/my-account",
+        destination: "/employer/login",
+        permanent: true,
+      },
       // The old WordPress site had duplicate index.php-prefixed URLs indexed
       // (e.g. /index.php/blog/). Normalise them to the clean path with a 301.
       {
