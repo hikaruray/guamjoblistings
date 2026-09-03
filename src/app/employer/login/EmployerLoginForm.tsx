@@ -107,7 +107,16 @@ export default function EmployerLoginForm() {
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-slate-500">
+      <p className="mt-4 text-center text-sm text-slate-500">
+        <Link
+          href="/employer/forgot-password"
+          className="font-medium text-cyan-600 hover:text-cyan-700"
+        >
+          Forgot your password?
+        </Link>
+      </p>
+
+      <p className="mt-2 text-center text-sm text-slate-500">
         New here?{" "}
         <Link href="/employer/register" className="font-medium text-cyan-600 hover:text-cyan-700">
           Create an employer account
