@@ -13,7 +13,7 @@ import { FROM_EMAIL, SITE_URL } from "@/lib/config";
 export async function POST(request: Request) {
   let body: {
     id?: string;
-    action?: "approve" | "reject";
+    action?: "approve" | "reject" | "unpublish";
     rejectionReason?: string;
   };
   try {
@@ -23,7 +23,8 @@ export async function POST(request: Request) {
   }
 
   const { id, action, rejectionReason } = body;
-  if (!id || (action !== "approve" && action !== "reject")) {
+  const ACTIONS = ["approve", "reject", "unpublish"] as const;
+  if (!id || !action || !ACTIONS.includes(action)) {
     return Response.json({ error: "Bad parameters." }, { status: 400 });
   }
 
@@ -36,10 +37,25 @@ export async function POST(request: Request) {
     console.error("Failed to load job before status change:", err);
   }
 
+  // Taking a live listing down is only meaningful while it is live. Say so
+  // rather than quietly "closing" something that was never on the board.
+  if (action === "unpublish" && job && job.status !== "approved") {
+    return Response.json(
+      { error: "Only a live listing can be taken down." },
+      { status: 409 },
+    );
+  }
+
+  const NEXT_STATUS = {
+    approve: "approved",
+    reject: "rejected",
+    unpublish: "closed",
+  } as const;
+
   try {
     await setJobStatus(
       id,
-      action === "approve" ? "approved" : "rejected",
+      NEXT_STATUS[action],
       action === "reject" ? rejectionReason ?? null : null,
     );
   } catch (err) {
@@ -66,14 +82,37 @@ export async function POST(request: Request) {
 
 async function notifyEmployer(
   job: Awaited<ReturnType<typeof getJobById>>,
-  action: "approve" | "reject",
+  action: "approve" | "reject" | "unpublish",
   rejectionReason: string | null,
 ): Promise<void> {
   if (!job?.email) return;
 
   const apiKey = process.env.RESEND_API_KEY;
   const { subject, text } =
-    action === "approve"
+    action === "unpublish"
+      ? {
+          // Taking a live posting down without a word is worse than never
+          // approving it: applications simply stop and the employer has no idea
+          // why. Say what happened, why if we gave a reason, and how to get back.
+          subject: `"${job.title}" has been taken down from Guam Job Listings`,
+          text: [
+            `We've removed your posting from the board.`,
+            ``,
+            `${job.title} — ${job.company}`,
+            ``,
+            rejectionReason
+              ? `Why:\n${rejectionReason}`
+              : `This is usually because something in the listing no longer meets our guidelines.`,
+            ``,
+            `It is not deleted — applications you already received are untouched, and you can edit it and put it back up for review from your dashboard:`,
+            `${SITE_URL}/employer/dashboard`,
+            ``,
+            `If you think we've got this wrong, just reply to this email.`,
+            ``,
+            `— Guam Job Listings`,
+          ].join("\n"),
+        }
+      : action === "approve"
       ? {
           subject: `"${job.title}" is now live on Guam Job Listings`,
           text: [

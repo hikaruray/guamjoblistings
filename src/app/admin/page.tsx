@@ -293,8 +293,8 @@ export default async function AdminPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {job.status === "pending" ? (
-                      <JobActions jobId={job.id} />
+                    {job.status === "pending" || job.status === "approved" ? (
+                      <JobActions jobId={job.id} status={job.status} />
                     ) : (
                       <span className="text-xs text-slate-400">—</span>
                     )}
