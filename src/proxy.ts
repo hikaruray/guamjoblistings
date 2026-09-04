@@ -57,9 +57,17 @@ export function proxy(request: NextRequest) {
     return unauthorized();
   }
 
+  // atob() hands back one character per BYTE, so a non-ASCII password arrives
+  // as mojibake and never matches: "Iggy1010！" (full-width ！, 3 bytes in
+  // UTF-8) decoded to 11 characters against an expected 9 and locked the owner
+  // out. We advertise charset="UTF-8" in the challenge above, so decode the
+  // bytes as UTF-8 rather than assuming the password is ASCII.
   let decoded = "";
   try {
-    decoded = atob(header.slice("Basic ".length));
+    const bytes = Uint8Array.from(atob(header.slice("Basic ".length)), (c) =>
+      c.charCodeAt(0),
+    );
+    decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
   } catch {
     return unauthorized();
   }
