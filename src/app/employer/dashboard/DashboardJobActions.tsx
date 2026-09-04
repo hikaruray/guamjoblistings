@@ -54,6 +54,7 @@ export default function DashboardJobActions({
         return;
       }
       if (action === "renew") setDone("renewed");
+      if (action === "reopen") setDone("reopened");
       router.refresh();
     } catch {
       setErr("Network error. Please try again.");
@@ -96,6 +97,14 @@ export default function DashboardJobActions({
         {!err && done === "renewed" && (
           <span className="mr-auto text-xs font-medium text-emerald-600">
             Renewed — live for another 10 days.
+          </span>
+        )}
+        {/* Reopening is not republishing: it goes back through review, and
+            saying so here saves the employer wondering why it is not on the
+            board yet. */}
+        {!err && done === "reopened" && (
+          <span className="mr-auto text-xs font-medium text-amber-700">
+            Sent back for review — we&apos;ll email you when it&apos;s live again.
           </span>
         )}
         <Link
