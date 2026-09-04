@@ -89,8 +89,9 @@ export default function HowItWorksPage() {
           </Step>
           <Step n={5} title="Manage it from your dashboard">
             Edit the posting, close it the moment the role is filled, or reopen
-            it if you need to hire again. Applications arrive by email as they
-            come in.
+            it if you need to hire again. We email you each time someone applies,
+            and you read the application itself — name, phone and message — on
+            your dashboard.
           </Step>
           <Step n={6} title="Optional: make it stand out">
             Feature a role to pin it to the top of the job list and the homepage,

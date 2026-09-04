@@ -75,14 +75,14 @@ export default async function JobDetailPage({
             <p className="mt-1 text-slate-600">{job.company}</p>
           </div>
           {job.featured && (
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
               <StarIcon className="h-3.5 w-3.5" /> Featured
             </span>
           )}
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2 text-sm">
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-slate-600">
             <PinIcon className="h-4 w-4" /> {job.location}
           </span>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
@@ -101,23 +101,33 @@ export default async function JobDetailPage({
           <p className="mt-2 leading-relaxed text-slate-600">{job.description}</p>
         </div>
 
-        <div className="mt-6">
-          <h2 className="font-semibold text-slate-900">Responsibilities</h2>
-          <ul className="mt-2 list-inside list-disc space-y-1 text-slate-600">
-            {job.responsibilities.map((r) => (
-              <li key={r}>{r}</li>
-            ))}
-          </ul>
-        </div>
+        {/* Only shown when there is something to show. The posting form asks
+            for one description and nothing else, so every employer-submitted
+            listing arrives with these two empty (public-jobs.ts fills them with
+            []) — and every real job on the board was rendering two headings
+            with nothing underneath. They stayed useful-looking only while the
+            sample listings, deleted on 2026-08-29, were filling them in. */}
+        {job.responsibilities.length > 0 && (
+          <div className="mt-6">
+            <h2 className="font-semibold text-slate-900">Responsibilities</h2>
+            <ul className="mt-2 list-inside list-disc space-y-1 text-slate-600">
+              {job.responsibilities.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
-        <div className="mt-6">
-          <h2 className="font-semibold text-slate-900">Requirements</h2>
-          <ul className="mt-2 list-inside list-disc space-y-1 text-slate-600">
-            {job.requirements.map((r) => (
-              <li key={r}>{r}</li>
-            ))}
-          </ul>
-        </div>
+        {job.requirements.length > 0 && (
+          <div className="mt-6">
+            <h2 className="font-semibold text-slate-900">Requirements</h2>
+            <ul className="mt-2 list-inside list-disc space-y-1 text-slate-600">
+              {job.requirements.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="mt-8 border-t border-slate-100 pt-6">
           <Link

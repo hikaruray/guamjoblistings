@@ -143,8 +143,9 @@ export default function ApplyForm({
           {sending ? "Sending..." : "Submit Application"}
         </button>
         <p className="text-center text-xs text-slate-400">
-          Your name, email and phone are sent directly to {company}, who will
-          contact you if you&apos;re a match. We&apos;ll email you a copy.
+          Your name, email and phone go to {company}, who will contact you if
+          you&apos;re a match. They read your application signed in to this site,
+          not by email. We&apos;ll email you a copy for your records.
         </p>
       </form>
     </div>

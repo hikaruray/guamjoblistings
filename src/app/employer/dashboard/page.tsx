@@ -108,7 +108,11 @@ export default async function EmployerDashboardPage({
         </p>
       )}
 
-      <CompanyDetails profile={profile} email={user.email ?? ""} />
+      <CompanyDetails
+        profile={profile}
+        email={user.email ?? ""}
+        returnToPosting={needCompanyDetails}
+      />
 
       {jobs.length === 0 ? (
         <div className="mt-8 rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-500">
@@ -153,13 +157,30 @@ export default async function EmployerDashboardPage({
                       <span className="text-sm font-medium text-slate-700">
                         {n} applicant{n === 1 ? "" : "s"}
                       </span>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          STATUS_STYLE[job.status] ?? "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {STATUS_LABEL[job.status] ?? job.status}
-                      </span>
+                      {/* An approved posting past its expiry is not on the
+                          board any more, and calling it "Live" in green while
+                          the line underneath says it has expired put two
+                          contradictory claims on one card. */}
+                      {(() => {
+                        const expired =
+                          job.status === "approved" &&
+                          job.expiresAt != null &&
+                          new Date(job.expiresAt).getTime() <= Date.now();
+                        const label = expired
+                          ? "Expired"
+                          : (STATUS_LABEL[job.status] ?? job.status);
+                        const style = expired
+                          ? "bg-slate-200 text-slate-600"
+                          : (STATUS_STYLE[job.status] ??
+                            "bg-slate-100 text-slate-600");
+                        return (
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${style}`}
+                          >
+                            {label}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                   {job.status === "rejected" && (
@@ -205,7 +226,7 @@ export default async function EmployerDashboardPage({
       )}
 
       <p className="mt-6 text-xs text-slate-400">
-        Applications are emailed to your contact address as they arrive. New
+        We email your contact address each time someone applies; the application itself is here. New
         postings are reviewed by our team before going live (usually within 24
         hours).
       </p>

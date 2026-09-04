@@ -100,7 +100,10 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
     q: "How do I receive applications?",
     a: (
       <>
-        By email, at the address on the posting, as each application arrives.
+        We email the address on your posting to tell you an application came in.
+        You read the application itself — name, phone and message — on your
+        dashboard. It is deliberately not in the email: an email cannot be taken
+        back, and applicants trust us with real contact details.
       </>
     ),
   },

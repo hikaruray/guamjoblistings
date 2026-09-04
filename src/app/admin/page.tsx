@@ -251,7 +251,25 @@ export default async function AdminPage() {
                     <p className="text-slate-500">{job.company}</p>
                     <p className="mt-1 text-xs text-slate-400">
                       {job.category} · {job.jobType} · {job.salary} · {job.location}
+                      {" · submitted "}
+                      {new Date(job.createdAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
                     </p>
+                    {/* The posting itself. Approve and Reject were being pressed
+                        without it: a pending job is not public, so /jobs/p_… is
+                        a 404 and this screen showed only the metadata. Deciding
+                        whether an employer is real means reading what they
+                        wrote. Collapsed so the queue still scans at a glance. */}
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-xs font-medium text-cyan-700 hover:text-cyan-800">
+                        Read the posting
+                      </summary>
+                      <p className="mt-2 max-w-prose whitespace-pre-wrap rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-700">
+                        {job.description}
+                      </p>
+                    </details>
                   </td>
                   <td className="hidden px-4 py-3 text-slate-600 sm:table-cell">
                     <p>{job.email}</p>

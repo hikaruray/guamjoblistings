@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { EmployerProfile } from "@/lib/store";
 
 // The contact name / website / phone an employer gave at registration, shown
@@ -13,10 +14,15 @@ import type { EmployerProfile } from "@/lib/store";
 export default function CompanyDetails({
   profile,
   email,
+  returnToPosting = false,
 }: {
   profile: EmployerProfile | null;
   email: string;
+  // True when /post-a-job sent them here to fill this in, so we can keep the
+  // promise the banner makes and take them back to what they were doing.
+  returnToPosting?: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(!profile);
   const [current, setCurrent] = useState(profile);
   const [saving, setSaving] = useState(false);
@@ -56,6 +62,14 @@ export default function CompanyDetails({
         phone: data.phone,
       });
       setOpen(false);
+      // The banner that sent them here promises they go "straight back to
+      // posting". Until now saving just closed the box and left the banner
+      // telling them to fill in what they had just filled in.
+      if (returnToPosting) {
+        router.push("/post-a-job");
+        return;
+      }
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save.");
     } finally {

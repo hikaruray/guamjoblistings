@@ -109,7 +109,7 @@ export default function PostJobForm({
 
         <Field label="Salary / Pay" name="salary" placeholder="e.g. $14 - $17 / hour" required />
         <Field
-          label="Contact Email (where applications go)"
+          label="Contact Email (where we notify you)"
           name="email"
           type="email"
           placeholder="hiring@yourcompany.com"

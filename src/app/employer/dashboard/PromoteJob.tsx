@@ -99,7 +99,7 @@ export default function PromoteJob({
       {/* Current add-on state */}
       <div className="flex flex-wrap items-center gap-2">
         {featuredOn && (
-          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
             <StarIcon className="h-3.5 w-3.5" /> Featured until {formatDate(featuredUntil!)}
           </span>
         )}

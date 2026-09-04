@@ -115,7 +115,7 @@ export default function EditJobForm({ job }: { job: PendingJob }) {
 
         <Field label="Salary / Pay" name="salary" defaultValue={job.salary} required />
         <Field
-          label="Contact Email (where applications go)"
+          label="Contact Email (where we notify you)"
           name="email"
           type="email"
           defaultValue={job.email}
