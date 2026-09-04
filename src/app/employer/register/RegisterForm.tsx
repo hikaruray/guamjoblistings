@@ -14,6 +14,7 @@ import { SITE_URL } from "@/lib/config";
 export default function RegisterForm() {
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const configured = isSupabaseConfigured();
 
@@ -38,21 +39,43 @@ export default function RegisterForm() {
 
       // Save the employer profile fields (name / URL / phone), keyed to the
       // newly created user. Uses a server route (service role) so RLS is fine.
+      //
+      // The account exists either way at this point, so a failure here must not
+      // read as "registration failed" — but it must not be swallowed either.
+      // Until 2026-09-04 this call ignored its own response, and the table sat
+      // empty while every registration reported success.
       const userId = signUp.user?.id;
+      let profileSaved = false;
       if (userId) {
-        await fetch("/api/employer/profile", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId,
-            email: data.email,
-            contactName: data.contactName,
-            url: data.url,
-            phone: data.phone,
-          }),
-        });
+        try {
+          const res = await fetch("/api/employer/profile", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId,
+              email: data.email,
+              contactName: data.contactName,
+              url: data.url,
+              phone: data.phone,
+            }),
+          });
+          profileSaved = res.ok;
+          if (!res.ok) {
+            console.error(
+              "[EMPLOYER PROFILE NOT SAVED]",
+              userId,
+              res.status,
+              await res.text().catch(() => ""),
+            );
+          }
+        } catch (err) {
+          console.error("[EMPLOYER PROFILE NOT SAVED]", userId, err);
+        }
+      } else {
+        console.error("[EMPLOYER PROFILE NOT SAVED] no user id from signUp");
       }
 
+      setProfileSaved(profileSaved);
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -73,6 +96,13 @@ export default function RegisterForm() {
             We sent a confirmation link to your inbox. Click it to verify your
             account, then you can post your first job.
           </p>
+          {!profileSaved && (
+            <p className="mt-4 rounded-lg bg-amber-100 px-4 py-3 text-left text-sm text-amber-900">
+              Your account is set up, but we couldn&apos;t save your company
+              details just now. Add them from your dashboard after you sign in —
+              we need them before your first listing goes live.
+            </p>
+          )}
         </div>
       </div>
     );

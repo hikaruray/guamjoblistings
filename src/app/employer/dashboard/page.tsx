@@ -1,13 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
-import { listJobsByUser, applicationCountsForJobs } from "@/lib/store";
+import {
+  listJobsByUser,
+  applicationCountsForJobs,
+  getEmployerProfile,
+} from "@/lib/store";
 import { addonViews } from "@/lib/addons";
 import { isPaypalConfigured } from "@/lib/paypal";
 import { PAYPAL_ENABLED } from "@/lib/config";
 import LogoutButton from "@/components/LogoutButton";
 import DashboardJobActions from "./DashboardJobActions";
 import PromoteJob from "./PromoteJob";
+import CompanyDetails from "./CompanyDetails";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +62,13 @@ export default async function EmployerDashboardPage() {
   // Paid add-ons appear only when PayPal is fully configured (server secret AND
   // public client id). Until the owner sets those, the site stays exactly as it
   // is today: Phase 0, every listing free, no payment UI anywhere.
+  // Their registration details, so they can see and correct them. A failure
+  // here is not worth taking the whole dashboard down for.
+  const profile = await getEmployerProfile(user.id).catch((err) => {
+    console.error("Failed to load employer profile:", err);
+    return null;
+  });
+
   const addonsEnabled = isPaypalConfigured() && PAYPAL_ENABLED;
   // Prices are resolved on the server and passed down for DISPLAY only.
   const addons = addonsEnabled ? addonViews() : [];
@@ -78,6 +90,8 @@ export default async function EmployerDashboardPage() {
           <LogoutButton />
         </div>
       </div>
+
+      <CompanyDetails profile={profile} email={user.email ?? ""} />
 
       {jobs.length === 0 ? (
         <div className="mt-8 rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center text-slate-500">

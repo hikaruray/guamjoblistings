@@ -795,3 +795,95 @@ export async function markExpiryNoticeSent(jobId: string): Promise<void> {
   if (job) job.expiryNotifiedAt = sentAt;
   await writeFile(db);
 }
+
+// ---------------------------------------------------------------------------
+// Employer profiles
+// ---------------------------------------------------------------------------
+// The contact name / website / phone every employer is required to give at
+// registration. Collected since day one but, until 2026-09-04, written and then
+// never read — so a reviewer approving a listing could not see who was behind
+// it, which is the entire reason we ask. These readers put it on the Admin
+// screen and let the employer correct it later.
+//
+// Local-JSON mode has no equivalent table; there is no auth in that mode
+// either, so profiles simply do not exist and the readers return empty.
+
+export interface EmployerProfile {
+  userId: string;
+  email: string;
+  contactName: string;
+  url: string;
+  phone: string;
+  createdAt?: string | null;
+}
+
+function rowToEmployerProfile(row: Record<string, unknown>): EmployerProfile {
+  return {
+    userId: String(row.user_id),
+    email: String(row.email ?? ""),
+    contactName: String(row.contact_name ?? ""),
+    url: String(row.url ?? ""),
+    phone: String(row.phone ?? ""),
+    createdAt: (row.created_at as string | null) ?? null,
+  };
+}
+
+export async function getEmployerProfile(
+  userId: string,
+): Promise<EmployerProfile | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("employer_profiles")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load employer profile: ${error.message}`);
+  return data ? rowToEmployerProfile(data as Record<string, unknown>) : null;
+}
+
+// Keyed by user id so the Admin screen can look up each listing's employer in
+// one round trip instead of one query per row.
+export async function employerProfilesByUserId(
+  userIds: string[],
+): Promise<Map<string, EmployerProfile>> {
+  const ids = [...new Set(userIds.filter(Boolean))];
+  if (ids.length === 0) return new Map();
+
+  const supabase = getSupabase();
+  if (!supabase) return new Map();
+
+  const { data, error } = await supabase
+    .from("employer_profiles")
+    .select("*")
+    .in("user_id", ids);
+  if (error) {
+    throw new Error(`Failed to load employer profiles: ${error.message}`);
+  }
+  return new Map(
+    (data ?? [])
+      .map((row) => rowToEmployerProfile(row as Record<string, unknown>))
+      .map((p) => [p.userId, p]),
+  );
+}
+
+export async function saveEmployerProfile(
+  profile: EmployerProfile,
+): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return false;
+
+  const { error } = await supabase.from("employer_profiles").upsert(
+    {
+      user_id: profile.userId,
+      email: profile.email,
+      contact_name: profile.contactName,
+      url: profile.url,
+      phone: profile.phone,
+    },
+    { onConflict: "user_id" },
+  );
+  if (error) throw new Error(`Failed to save employer profile: ${error.message}`);
+  return true;
+}

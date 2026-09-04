@@ -1,4 +1,10 @@
-import { listApplications, listPendingJobs, listPayments } from "@/lib/store";
+import {
+  listApplications,
+  listPendingJobs,
+  listPayments,
+  employerProfilesByUserId,
+  type EmployerProfile,
+} from "@/lib/store";
 import JobActions from "./JobActions";
 
 // Always read the latest data (no caching) so new submissions show immediately.
@@ -27,6 +33,16 @@ export default async function AdminPage() {
       return [];
     }),
   ]);
+
+  // Who is behind each listing. Reviewing a job means judging whether the
+  // employer is real, so the contact details they gave at registration belong
+  // on this screen. Never let a profiles read take the page down.
+  const profiles = await employerProfilesByUserId(
+    pendingJobs.map((j) => j.userId ?? ""),
+  ).catch((err) => {
+    console.error("Failed to load employer profiles:", err);
+    return new Map<string, EmployerProfile>();
+  });
 
   const now = Date.now();
   const daysAgo = (iso: string) => (now - new Date(iso).getTime()) / 86_400_000;
@@ -238,7 +254,36 @@ export default async function AdminPage() {
                     </p>
                   </td>
                   <td className="hidden px-4 py-3 text-slate-600 sm:table-cell">
-                    {job.email}
+                    <p>{job.email}</p>
+                    {(() => {
+                      const p = job.userId ? profiles.get(job.userId) : undefined;
+                      if (!p) {
+                        return (
+                          <p className="mt-1 text-xs text-amber-600">
+                            No account details on file
+                          </p>
+                        );
+                      }
+                      return (
+                        <div className="mt-1 space-y-0.5 text-xs text-slate-500">
+                          <p>{p.contactName}</p>
+                          <p>{p.phone}</p>
+                          <a
+                            href={p.url}
+                            target="_blank"
+                            rel="noopener noreferrer nofollow"
+                            className="text-cyan-600 hover:text-cyan-700"
+                          >
+                            {p.url}
+                          </a>
+                          {p.email !== job.email && (
+                            <p className="text-amber-600">
+                              Account email: {p.email}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3">
                     <span
