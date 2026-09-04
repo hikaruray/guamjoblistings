@@ -118,12 +118,18 @@ export default function DashboardJobActions({
             {busy === "renew" ? "…" : "Renew 10 days"}
           </button>
         )}
+        {/* Close is the only way to take a posting down — there is no delete,
+            because applications already sent must keep pointing at something
+            real. It used to sit here as grey text the same weight as Edit, and
+            the owner could not find it on the live site; an employer with a
+            filled role will not do better. Give it a border so it reads as a
+            control rather than a third link. */}
         {status === "closed" ? (
           <button
             type="button"
             onClick={() => act("reopen")}
             disabled={busy !== null}
-            className="text-sm font-medium text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+            className="rounded-lg border border-emerald-300 px-3 py-1.5 text-sm font-medium text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50"
           >
             {busy === "reopen" ? "…" : "Reopen"}
           </button>
@@ -132,9 +138,9 @@ export default function DashboardJobActions({
             type="button"
             onClick={() => act("close")}
             disabled={busy !== null}
-            className="text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50"
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
           >
-            {busy === "close" ? "…" : "Close"}
+            {busy === "close" ? "…" : "Close listing"}
           </button>
         )}
       </div>
