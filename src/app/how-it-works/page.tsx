@@ -1,4 +1,9 @@
 import Link from "next/link";
+import { isPaypalConfigured } from "@/lib/paypal";
+import { PAYPAL_ENABLED } from "@/lib/config";
+
+// See the note in faq/page.tsx: do not advertise what create-order refuses.
+const ADDONS_AVAILABLE = isPaypalConfigured() && PAYPAL_ENABLED;
 
 export const metadata = {
   title: "How It Works",
@@ -93,12 +98,14 @@ export default function HowItWorksPage() {
             and you read the application itself — name, phone and message — on
             your dashboard.
           </Step>
-          <Step n={6} title="Optional: make it stand out">
-            Feature a role to pin it to the top of the job list and the homepage,
-            or add an Urgent badge so jobseekers notice it first. Both are bought
-            from your dashboard once the posting is live. They buy attention, not
-            time — staying on the board is always free.
-          </Step>
+          {ADDONS_AVAILABLE && (
+            <Step n={6} title="Optional: make it stand out">
+              Feature a role to pin it to the top of the job list and the
+              homepage, or add an Urgent badge so jobseekers notice it first.
+              Both are bought from your dashboard once the posting is live. They
+              buy attention, not time — staying on the board is always free.
+            </Step>
+          )}
         </ol>
         <Link
           href="/post-a-job"

@@ -84,7 +84,15 @@ export default async function EmployerDashboardPage({
     <div className="mx-auto max-w-4xl px-4 py-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Your job listings</h1>
+          {/* Someone sent here from Post a Job, with no company details and no
+              listings, is not looking at "your job listings" — they may not even
+              be an employer. A jobseeker who taps Post a Job out of curiosity
+              landed on a page titled as though they already had postings. */}
+          <h1 className="text-2xl font-bold text-slate-900">
+            {needCompanyDetails && !profile && jobs.length === 0
+              ? "Set up your employer account"
+              : "Your job listings"}
+          </h1>
           <p className="mt-1 text-sm text-slate-500">Signed in as {user.email}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -199,6 +207,24 @@ export default async function EmployerDashboardPage({
                       <p className="mt-1">
                         Please edit and resubmit, or email us at
                         applications@guamjoblisting.com and we&apos;ll help.
+                      </p>
+                    </div>
+                  )}
+                  {/* A closed posting carrying a reason was closed by us, not
+                      by the employer — see setJobStatus. Without this the two
+                      looked identical, so an employer could reopen a listing we
+                      had removed, never knowing why, and have it removed again. */}
+                  {job.status === "closed" && job.rejectionReason && (
+                    <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      <p>
+                        <span className="font-semibold">
+                          We took this posting down.
+                        </span>{" "}
+                        {job.rejectionReason}
+                      </p>
+                      <p className="mt-1">
+                        Edit it to address this and reopen it, or reply to our
+                        email if you think we got it wrong.
                       </p>
                     </div>
                   )}

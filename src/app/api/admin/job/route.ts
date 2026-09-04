@@ -56,7 +56,12 @@ export async function POST(request: Request) {
     await setJobStatus(
       id,
       NEXT_STATUS[action],
-      action === "reject" ? rejectionReason ?? null : null,
+      // Keep the reason for an unpublish too, not just a rejection. It was
+      // emailed and then thrown away, so nobody — not the employer, not the
+      // next reviewer — could see afterwards why a listing had been pulled.
+      action === "reject" || action === "unpublish"
+        ? (rejectionReason ?? null)
+        : null,
     );
   } catch (err) {
     console.error("Failed to update job status:", err);

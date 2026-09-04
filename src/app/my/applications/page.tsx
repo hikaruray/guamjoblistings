@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
-import { listApplicationsByUser } from "@/lib/store";
+import { listApplicationsByUser, jobStatusesForPublicIds } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +24,31 @@ export default async function MyApplicationsPage() {
   if (!user) redirect("/login?next=/my/applications");
 
   const applications = await listApplicationsByUser(user.id);
+
+  // What became of each posting. Without this every application says "Sent"
+  // forever, including ones whose listing was filled or taken down weeks ago —
+  // so an applicant waiting to hear back has no way to know they are waiting
+  // for nothing.
+  const jobStates = await jobStatusesForPublicIds(
+    applications.map((a) => a.jobId),
+  ).catch(() => new Map());
+
+  function listingNote(jobId: string): string | null {
+    const s = jobStates.get(jobId);
+    if (!s) return null;
+    if (s.status === "closed" || s.status === "rejected") {
+      return "This listing has come down.";
+    }
+    if (
+      s.status === "approved" &&
+      s.expiresAt &&
+      new Date(s.expiresAt).getTime() <= Date.now()
+    ) {
+      return "This listing has expired.";
+    }
+    if (s.status === "pending") return "This listing is being re-reviewed.";
+    return null;
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
@@ -76,6 +101,12 @@ export default async function MyApplicationsPage() {
                   Applied {new Date(a.createdAt).toLocaleDateString()} · sent to
                   the employer with your contact details
                 </p>
+                {listingNote(a.jobId) && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    {listingNote(a.jobId)} Your application still reached them —
+                    they can read it whenever they sign in.
+                  </p>
+                )}
                 {a.message && (
                   <p className="mt-2 max-w-xl text-xs text-slate-500">
                     &ldquo;{a.message}&rdquo;

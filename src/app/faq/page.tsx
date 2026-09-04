@@ -1,4 +1,11 @@
 import Link from "next/link";
+import { isPaypalConfigured } from "@/lib/paypal";
+import { PAYPAL_ENABLED } from "@/lib/config";
+
+// Paid add-ons cannot be bought until PayPal has server keys — /api/paypal/
+// create-order answers 503 and the dashboard hides the buttons. Advertising
+// them anyway told employers about a product the site refuses to sell.
+const ADDONS_AVAILABLE = isPaypalConfigured() && PAYPAL_ENABLED;
 
 export const metadata = {
   title: "FAQ",
@@ -142,7 +149,7 @@ export default function FaqPage() {
       </header>
 
       <div className="mt-6 divide-y divide-slate-100">
-        {FAQS.map((item) => (
+        {FAQS.filter((item) => ADDONS_AVAILABLE || !item.q.includes("paid options")).map((item) => (
           <details key={item.q} className="group py-4">
             <summary className="cursor-pointer list-none font-semibold text-slate-900 marker:hidden">
               <span className="mr-2 inline-block text-cyan-600 transition group-open:rotate-90">

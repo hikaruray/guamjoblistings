@@ -334,8 +334,17 @@ export async function setJobStatus(
   status: JobStatus,
   rejectionReason?: string | null,
 ): Promise<void> {
-  // Keep a rejection reason only while the job is rejected; clear it otherwise.
-  const reason = status === "rejected" ? rejectionReason ?? null : null;
+  // Keep the reviewer's note while the posting is rejected — and now also while
+  // it is closed, because a closed posting has two very different causes: the
+  // employer filled the role, or we took it down. They looked identical on the
+  // employer's dashboard, so someone whose listing we removed saw the same grey
+  // "Closed" as someone who closed it themselves, reopened it, and got removed
+  // again for the same unstated reason. A reason present on a closed posting
+  // means we closed it; employer-initiated closes pass none.
+  const reason =
+    status === "rejected" || status === "closed"
+      ? (rejectionReason ?? null)
+      : null;
   // Approval starts the clock. Reopening a closed posting restarts it too, so a
   // role that comes back is visible for a full window rather than expiring the
   // moment it reappears.
@@ -920,4 +929,41 @@ export async function listApplicationsForJobs(
   return (await readFile()).applications
     .filter((a) => publicJobIds.includes(a.jobId))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+// The current state of the postings behind a set of public job ids ("p_<uuid>").
+// The applicant's own page needs it: an application row keeps the title and
+// company it was sent to, but says nothing about what happened to the posting
+// afterwards, so every application read "Sent" forever — including ones whose
+// listing had been filled, closed or taken down weeks earlier.
+export async function jobStatusesForPublicIds(
+  publicJobIds: string[],
+): Promise<Map<string, { status: JobStatus; expiresAt?: string | null }>> {
+  const rawIds = publicJobIds
+    .filter((id) => id.startsWith("p_"))
+    .map((id) => id.slice(2));
+  if (rawIds.length === 0) return new Map();
+
+  const supabase = getSupabase();
+  const out = new Map<string, { status: JobStatus; expiresAt?: string | null }>();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("id,status,expires_at")
+      .in("id", rawIds);
+    if (error) throw new Error(`Failed to load job states: ${error.message}`);
+    for (const row of data ?? []) {
+      const r = row as { id: string; status: JobStatus; expires_at: string | null };
+      out.set(`p_${r.id}`, { status: r.status, expiresAt: r.expires_at });
+    }
+    return out;
+  }
+
+  for (const j of (await readFile()).pendingJobs) {
+    if (rawIds.includes(j.id)) {
+      out.set(`p_${j.id}`, { status: j.status, expiresAt: j.expiresAt ?? null });
+    }
+  }
+  return out;
 }

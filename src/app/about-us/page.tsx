@@ -29,10 +29,8 @@ export default function AboutPage() {
             Posting a job is free
           </h2>
           <p className="mt-2">
-            Employers can post an opening at no charge, with no listing limit and
-            no contract. Optional paid add-ons are available from the employer
-            dashboard for anyone who wants a posting to stand out, but nothing
-            about hiring here requires payment.
+            Employers can post an opening at no charge, with no listing limit
+            and no contract. Nothing about hiring here requires payment.
           </p>
         </section>
 
