@@ -2,14 +2,7 @@ import Link from "next/link";
 import { CATEGORIES } from "@/lib/jobs";
 import { getPublicJobs } from "@/lib/public-jobs";
 import JobCard from "@/components/JobCard";
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  "Hospitality & Hotels": "🏨",
-  "Food & Beverage": "🍽️",
-  "Water Sports & Tours": "🌊",
-  "Retail & Shopping": "🛍️",
-  "General & Other": "💼",
-};
+import { CategoryIcon, PalmLogo, SearchIcon, DocumentIcon, HandshakeIcon } from "@/components/icons";
 
 export default async function Home() {
   // Real, approved postings only. The placeholder listings this page used to
@@ -23,7 +16,7 @@ export default async function Home() {
       <section className="relative overflow-hidden bg-gradient-to-br from-cyan-600 via-cyan-500 to-teal-500 text-white">
         <div className="mx-auto max-w-6xl px-4 py-20 text-center sm:py-28">
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
-            Find Your Next Job in Guam 🌴
+            Find Your Next Job in Guam
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-cyan-50">
             The island&apos;s local job board for hospitality, dining, water
@@ -69,7 +62,9 @@ export default async function Home() {
               href={`/jobs?category=${encodeURIComponent(cat)}`}
               className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 bg-white p-5 text-center shadow-sm transition hover:border-cyan-300 hover:shadow-md"
             >
-              <span className="text-3xl">{CATEGORY_EMOJI[cat]}</span>
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-cyan-50 text-cyan-700">
+                <CategoryIcon category={cat} className="h-6 w-6" />
+              </span>
               <span className="text-sm font-medium text-slate-700">{cat}</span>
             </Link>
           ))}
@@ -100,7 +95,7 @@ export default async function Home() {
       ) : (
         <section className="mx-auto max-w-3xl px-4 pb-4">
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
-            <p className="text-3xl">🌴</p>
+            <p className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400"><PalmLogo className="h-7 w-7" /></p>
             <h2 className="mt-3 text-xl font-bold text-slate-900">
               No openings posted yet
             </h2>
@@ -134,27 +129,27 @@ export default async function Home() {
         <div className="mt-8 grid gap-6 sm:grid-cols-3">
           {[
             {
-              icon: "🔍",
+              icon: SearchIcon,
               title: "Browse Jobs",
               text: "Explore open positions across Guam by category or keyword.",
             },
             {
-              icon: "📝",
+              icon: DocumentIcon,
               title: "Apply in Minutes",
               text: "Send your application straight to the employer — no account needed.",
             },
             {
-              icon: "🤝",
+              icon: HandshakeIcon,
               title: "Get Hired",
               text: "Employers contact you directly when you're a great match.",
             },
-          ].map((step, i) => (
+          ].map(({ icon: StepIcon, ...step }, i) => (
             <div
               key={step.title}
               className="rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm"
             >
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-cyan-50 text-2xl">
-                {step.icon}
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-cyan-50 text-cyan-700">
+                <StepIcon className="h-6 w-6" />
               </div>
               <p className="mt-3 text-sm font-semibold text-cyan-600">
                 Step {i + 1}

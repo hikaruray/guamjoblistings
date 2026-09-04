@@ -1,5 +1,6 @@
 "use client";
 
+import { SendIcon } from "@/components/icons";
 import { useState } from "react";
 import Link from "next/link";
 
@@ -52,7 +53,7 @@ export default function ApplyForm({
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-10">
-          <p className="text-4xl">🎉</p>
+          <p className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"><SendIcon className="h-7 w-7" /></p>
           <h1 className="mt-4 text-2xl font-bold text-slate-900">
             Application sent!
           </h1>
@@ -65,7 +66,7 @@ export default function ApplyForm({
           </p>
           <p className="mt-2 text-sm text-slate-500">
             {company} will contact you directly if you&apos;re a match.
-            Employers usually reply within about a week. Good luck! 🌴
+            Employers usually reply within about a week. Good luck!
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link

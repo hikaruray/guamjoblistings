@@ -1,3 +1,4 @@
+import { PalmLogo } from "@/components/icons";
 import Link from "next/link";
 import { CATEGORIES } from "@/lib/jobs";
 import { getPublicJobs } from "@/lib/public-jobs";
@@ -104,7 +105,7 @@ export default async function JobsPage({
             // Nothing is posted at all — say so plainly rather than implying
             // the search was too narrow.
             <>
-              <p className="text-3xl">🌴</p>
+              <p className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-400"><PalmLogo className="h-7 w-7" /></p>
               <p className="mt-3 font-semibold text-slate-900">
                 No openings posted yet
               </p>

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { SITE_URL } from "@/lib/config";
 import Link from "next/link";
+import SiteHeader from "@/components/SiteHeader";
+import { PalmLogo } from "@/components/icons";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -45,42 +47,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="flex min-h-full flex-col bg-slate-50 text-slate-800">
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-            <Link href="/" className="flex items-center gap-2">
-              <span className="text-2xl">🌴</span>
-              <span className="text-lg font-bold tracking-tight text-slate-900">
-                Guam<span className="text-cyan-600">Jobs</span>
-              </span>
-            </Link>
-            <nav className="flex items-center gap-1 text-sm font-medium sm:gap-3">
-              <Link
-                href="/jobs"
-                className="rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              >
-                Browse Jobs
-              </Link>
-              <Link
-                href="/my/applications"
-                className="hidden rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 sm:block"
-              >
-                My Applications
-              </Link>
-              <Link
-                href="/employer/login"
-                className="hidden rounded-md px-3 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 sm:block"
-              >
-                Employers
-              </Link>
-              <Link
-                href="/post-a-job"
-                className="rounded-md bg-cyan-600 px-4 py-2 text-white shadow-sm transition hover:bg-cyan-700"
-              >
-                Post a Job
-              </Link>
-            </nav>
-          </div>
-        </header>
+        <SiteHeader />
 
         <main className="flex-1">{children}</main>
 
@@ -88,7 +55,10 @@ export default function RootLayout({
           <div className="mx-auto max-w-6xl px-4 py-8 text-sm text-slate-500">
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
               <div>
-                <p className="font-semibold text-slate-700">🌴 Guam Job Listings</p>
+                <p className="flex items-center gap-2 font-semibold text-slate-700">
+                  <PalmLogo className="h-5 w-5 text-cyan-600" />
+                  Guam Job Listings
+                </p>
                 <p className="mt-1">Connecting local talent with island employers.</p>
                 <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                   <Link href="/jobs" className="hover:text-slate-700">

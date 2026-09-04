@@ -1,5 +1,6 @@
 "use client";
 
+import { StarIcon } from "@/components/icons";
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import PaypalCheckout from "@/components/PaypalCheckout";
@@ -99,7 +100,7 @@ export default function PromoteJob({
       <div className="flex flex-wrap items-center gap-2">
         {featuredOn && (
           <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
-            ★ Featured until {formatDate(featuredUntil!)}
+            <StarIcon className="h-3.5 w-3.5" /> Featured until {formatDate(featuredUntil!)}
           </span>
         )}
         {urgentOn && (

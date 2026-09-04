@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckCircleIcon } from "@/components/icons";
 import { useState } from "react";
 import Link from "next/link";
 import { CATEGORIES } from "@/lib/jobs";
@@ -41,7 +42,7 @@ export default function EditJobForm({ job }: { job: PendingJob }) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-10">
-          <p className="text-4xl">✅</p>
+          <p className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600"><CheckCircleIcon className="h-7 w-7" /></p>
           <h1 className="mt-4 text-2xl font-bold text-slate-900">Changes saved</h1>
           <p className="mt-2 text-slate-600">
             Your edits were saved. Because the posting changed, it goes back to a

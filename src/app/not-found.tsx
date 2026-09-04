@@ -1,9 +1,10 @@
+import { PalmLogo } from "@/components/icons";
 import Link from "next/link";
 
 export default function NotFound() {
   return (
     <div className="mx-auto flex max-w-xl flex-col items-center px-4 py-24 text-center">
-      <p className="text-6xl">🌴</p>
+      <p className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-cyan-50 text-cyan-600"><PalmLogo className="h-10 w-10" /></p>
       <h1 className="mt-4 text-3xl font-bold text-slate-900">
         Page not found
       </h1>

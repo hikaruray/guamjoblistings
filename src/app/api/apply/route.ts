@@ -116,7 +116,7 @@ export async function POST(request: Request) {
     `See all your applications any time:`,
     `${SITE_URL}/my/applications`,
     ``,
-    `Good luck! 🌴`,
+    `Good luck!`,
     `— Guam Job Listings`,
   ].join("\n");
 

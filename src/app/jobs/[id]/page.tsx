@@ -1,3 +1,4 @@
+import { PinIcon, StarIcon } from "@/components/icons";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublicJob } from "@/lib/public-jobs";
@@ -75,14 +76,14 @@ export default async function JobDetailPage({
           </div>
           {job.featured && (
             <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
-              ★ Featured
+              <StarIcon className="h-3.5 w-3.5" /> Featured
             </span>
           )}
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2 text-sm">
           <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
-            📍 {job.location}
+            <PinIcon className="h-4 w-4" /> {job.location}
           </span>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
             {job.category}
