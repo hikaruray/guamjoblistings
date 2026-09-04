@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 import { FROM_EMAIL, OWNER_COPY_EMAIL } from "@/lib/config";
-import { addPendingJob } from "@/lib/store";
+import { addPendingJob, getEmployerProfile } from "@/lib/store";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
 
 export async function POST(request: Request) {
@@ -34,6 +34,20 @@ export async function POST(request: Request) {
       );
     }
     userId = user.id;
+
+    // The page redirects anyone without company details to fill them in, but
+    // the page is not the gate — this is. A posting whose employer we know
+    // nothing about is the shape a scam listing takes.
+    const profile = await getEmployerProfile(userId).catch(() => null);
+    if (!profile) {
+      return Response.json(
+        {
+          error:
+            "Please add your company details before posting. You can do it from your dashboard.",
+        },
+        { status: 403 },
+      );
+    }
   }
 
   // Save to the Admin review queue (pre-publish check).

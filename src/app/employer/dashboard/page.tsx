@@ -36,7 +36,14 @@ const STATUS_STYLE: Record<string, string> = {
   closed: "bg-slate-200 text-slate-600",
 };
 
-export default async function EmployerDashboardPage() {
+export default async function EmployerDashboardPage({
+  searchParams,
+}: {
+  // Next 16: request-time APIs are async, so this is a Promise.
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const needCompanyDetails =
+    (await searchParams).needCompanyDetails !== undefined;
   // If auth isn't configured (local dev), guide the user rather than crashing.
   if (!isAuthConfigured()) {
     return (
@@ -90,6 +97,16 @@ export default async function EmployerDashboardPage() {
           <LogoutButton />
         </div>
       </div>
+
+      {/* Arriving here from /post-a-job without a profile is a redirect, and a
+          redirect with no explanation reads as the site losing your click. */}
+      {needCompanyDetails && !profile && (
+        <p className="mt-6 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Before your first listing, we need your company details. Job seekers
+          and our reviewers use them to tell a real employer from a scam. Fill
+          them in below and you&apos;ll go straight back to posting.
+        </p>
+      )}
 
       <CompanyDetails profile={profile} email={user.email ?? ""} />
 

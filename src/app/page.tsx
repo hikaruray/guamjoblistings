@@ -136,7 +136,7 @@ export default async function Home() {
             {
               icon: DocumentIcon,
               title: "Apply in Minutes",
-              text: "Send your application straight to the employer — no account needed.",
+              text: "Confirm your email with a one-time link, then send a short application. No password, no resume upload.",
             },
             {
               icon: HandshakeIcon,

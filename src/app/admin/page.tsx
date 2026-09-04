@@ -264,6 +264,27 @@ export default async function AdminPage() {
                           </p>
                         );
                       }
+                      // Does the account's email live at the company's own
+                      // domain? A real hotel signs up from @hotel.com; a scam
+                      // listing almost always uses free webmail with a company
+                      // website borrowed from somewhere. It is a hint, not a
+                      // verdict — plenty of small Guam employers legitimately
+                      // use Gmail — so it is shown, never enforced.
+                      const emailDomain = p.email.split("@")[1]?.toLowerCase();
+                      let siteDomain: string | null = null;
+                      try {
+                        siteDomain = new URL(p.url).hostname
+                          .toLowerCase()
+                          .replace(/^www\./, "");
+                      } catch {
+                        siteDomain = null;
+                      }
+                      const domainsMatch =
+                        Boolean(emailDomain && siteDomain) &&
+                        (emailDomain === siteDomain ||
+                          siteDomain!.endsWith(`.${emailDomain}`) ||
+                          emailDomain!.endsWith(`.${siteDomain}`));
+
                       return (
                         <div className="mt-1 space-y-0.5 text-xs text-slate-500">
                           <p>{p.contactName}</p>
@@ -281,6 +302,17 @@ export default async function AdminPage() {
                               Account email: {p.email}
                             </p>
                           )}
+                          <p
+                            className={
+                              domainsMatch ? "text-emerald-600" : "text-amber-600"
+                            }
+                          >
+                            {domainsMatch
+                              ? `Email matches ${siteDomain}`
+                              : siteDomain
+                                ? `Email is ${emailDomain ?? "?"}, site is ${siteDomain}`
+                                : "Website is not a valid URL"}
+                          </p>
                         </div>
                       );
                     })()}
