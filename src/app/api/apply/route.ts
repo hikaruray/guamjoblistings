@@ -79,16 +79,28 @@ export async function POST(request: Request) {
     );
   }
 
-  const subject = `New application: ${job.title} — ${name}`;
+  // Deliberately no applicant details.
+  //
+  // Until 2026-09-04 this email carried the applicant's name, email, phone and
+  // message. The address it goes to is whatever the posting typed in — we never
+  // verify it — so every application pushed a real person's contact details
+  // into an inbox we cannot see, cannot audit, and cannot take them back out of
+  // if the listing later turned out to be fake. Taking a listing down did
+  // nothing about the copies already sent.
+  //
+  // Now the notification says only that an application arrived, and the details
+  // live behind the employer's login, where access ends when their access does.
+  const subject = `New application: ${job.title}`;
   const text = [
-    `New application for: ${job.title} (${job.company})`,
+    `You have a new application.`,
     ``,
-    `Name:  ${name}`,
-    `Email: ${email}`,
-    `Phone: ${phone}`,
+    `${job.title} — ${job.company}`,
     ``,
-    `Message:`,
-    message?.trim() || "(none)",
+    `Read it, with the applicant's contact details, on your dashboard:`,
+    `${SITE_URL}/employer/applications`,
+    ``,
+    `We keep applicants' personal details on the site rather than in email, so`,
+    `they stay with the people who need them.`,
     ``,
     `— Sent via Guam Job Listings (www.guamjoblisting.com)`,
   ].join("\n");
@@ -150,9 +162,12 @@ export async function POST(request: Request) {
   try {
     await resend.emails.send({
       from: FROM_EMAIL,
-      to: job.contactEmail, // employer receives the application directly
-      bcc: OWNER_COPY_EMAIL, // owner keeps a copy for record-keeping
-      replyTo: email, // employer can reply straight to the applicant
+      to: job.contactEmail, // employer is told an application arrived
+      bcc: OWNER_COPY_EMAIL, // owner keeps a record that it happened
+      // No replyTo. It used to carry the applicant's address so the employer
+      // could reply straight to them — which would put the applicant's email
+      // back in this message's headers and undo the whole point of taking it
+      // out of the body. They reply from the dashboard instead.
       subject,
       text,
     });

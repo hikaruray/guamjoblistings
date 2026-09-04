@@ -887,3 +887,37 @@ export async function saveEmployerProfile(
   if (error) throw new Error(`Failed to save employer profile: ${error.message}`);
   return true;
 }
+
+// Applications to a set of public job ids ("p_<uuid>"). Used by the employer
+// dashboard, which passes only the ids of jobs that employer owns — ownership
+// is enforced by the caller, not here, exactly as applicationCountsForJobs does.
+//
+// Added 2026-09-04. Until then an employer could see the COUNT of applications
+// and nothing else: the applicant's name, email, phone and message existed only
+// inside a notification email sent to whatever address the posting named. That
+// meant the personal data left the system on its way to an unverified inbox and
+// could never be taken back, and an employer had no way to read an application
+// on the site at all.
+export async function listApplicationsForJobs(
+  publicJobIds: string[],
+): Promise<StoredApplication[]> {
+  if (publicJobIds.length === 0) return [];
+
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .in("job_id", publicJobIds)
+      .order("created_at", { ascending: false });
+    if (error) {
+      throw new Error(`Failed to load applications: ${error.message}`);
+    }
+    return (data ?? []).map(rowToApplication);
+  }
+
+  return (await readFile()).applications
+    .filter((a) => publicJobIds.includes(a.jobId))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}

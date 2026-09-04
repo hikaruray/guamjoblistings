@@ -58,9 +58,17 @@ export default function PrivacyPage() {
 
         <Section title="Who sees your application">
           <p>
-            The employer who posted the job receives it by email at the address
-            on that listing. The site owner also receives a copy of every
-            application for record-keeping and to resolve disputes.
+            The employer who posted the job. They read it while signed in to
+            their dashboard — we email them that an application arrived, but the
+            email itself does not contain your name, contact details or message.
+            We changed this deliberately: an email cannot be taken back, and the
+            address on a listing is one the employer typed in rather than one we
+            have verified.
+          </p>
+          <p>
+            The site owner receives a record that an application was made, for
+            record-keeping and to resolve disputes, and can see applications in
+            the admin area.
           </p>
           <p>
             We do not sell your details, and we do not send them to anyone else.

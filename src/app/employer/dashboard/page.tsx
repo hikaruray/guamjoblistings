@@ -99,11 +99,24 @@ export default async function EmployerDashboardPage() {
         </div>
       ) : (
         <>
-          <p className="mt-6 text-sm text-slate-600">
-            {totalApplicants === 0
-              ? "No applicants yet — new applications will appear here as they come in."
-              : `${totalApplicants} application${totalApplicants === 1 ? "" : "s"} received across your listings.`}
-          </p>
+          {/* The count used to be the end of the road: an employer could see
+              that six people had applied and had no way to read any of them
+              here. The applications themselves now live one click away. */}
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-slate-600">
+              {totalApplicants === 0
+                ? "No applicants yet — new applications will appear here as they come in."
+                : `${totalApplicants} application${totalApplicants === 1 ? "" : "s"} received across your listings.`}
+            </p>
+            {totalApplicants > 0 && (
+              <Link
+                href="/employer/applications"
+                className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700"
+              >
+                Read applications
+              </Link>
+            )}
+          </div>
           <div className="mt-3 space-y-3">
             {jobs.map((job) => {
               const n = counts[`p_${job.id}`] ?? 0;
