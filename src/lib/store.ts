@@ -1030,8 +1030,16 @@ export async function resolvePayment(
   orderId: string,
   resolution: string,
 ): Promise<void> {
-  const note = `Resolved: ${resolution}`;
   const supabase = getSupabase();
+
+  // Appended, never replaced. The existing note is what the SYSTEM observed —
+  // "charged 15.00 USD, expected 10.00 USD" — and overwriting it with a human
+  // sentence throws away the only objective record of what actually happened.
+  // Also fails loudly on an unknown order, so resolving a typo cannot report
+  // success while changing nothing.
+  const existing = await getPaymentByOrderId(orderId);
+  if (!existing) throw new Error(`No payment for order ${orderId}.`);
+  const note = `Resolved: ${resolution} | was: ${existing.errorNote ?? "(no note)"}`;
 
   if (supabase) {
     const { error } = await supabase
@@ -1044,6 +1052,7 @@ export async function resolvePayment(
 
   const db = await readFile();
   const p = db.payments.find((x) => x.paypalOrderId === orderId);
-  if (p) p.errorNote = note;
+  if (!p) throw new Error(`No payment for order ${orderId}.`);
+  p.errorNote = note;
   await writeFile(db);
 }

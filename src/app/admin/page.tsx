@@ -3,6 +3,7 @@ import {
   listPendingJobs,
   listPayments,
   employerProfilesByUserId,
+  UNRESOLVED_NOTE_PREFIX,
   type EmployerProfile,
 } from "@/lib/store";
 import JobActions from "./JobActions";
@@ -118,7 +119,16 @@ export default async function AdminPage() {
   // stayed there. The alert would have filled with normal revenue and buried
   // the one real failure it exists to surface. A grant that happened always
   // pushes the end date past the moment of payment, so that is the comparison.
+  // A row a human has already dealt with — refunded, or granted by hand — must
+  // leave the alert. Granting by hand moves the date and it clears itself, but
+  // a refund does not touch the job at all, so without this the red box would
+  // have kept a settled case forever. Same trap as the unresolved block having
+  // no release; this is its twin, one panel over.
+  const isResolved = (p: (typeof payments)[number]) =>
+    (p.errorNote ?? "").startsWith("Resolved:");
+
   const ungranted = paidPayments.filter((p) => {
+    if (isResolved(p)) return false;
     const job = jobTitleById.get(p.jobId);
     if (!job) return true; // paid against a posting that no longer exists
     // Explicit per-addon lookup rather than a two-way branch: a retired addon
@@ -151,8 +161,11 @@ export default async function AdminPage() {
   // rows, which the revenue table excludes, so without this they appeared
   // nowhere but a truncated cell in the ledger and a server log nobody reads.
   const unknownOutcome = payments.filter(
-    (p) => p.status === "failed" && p.errorNote?.startsWith("Outcome unknown"),
+    (p) =>
+      p.status === "failed" &&
+      (p.errorNote ?? "").startsWith(UNRESOLVED_NOTE_PREFIX),
   );
+
 
   // Live listings someone has paid to promote. The reviewer needs this before
   // pressing Unpublish: taking down a posting that was featured yesterday is a
@@ -249,7 +262,9 @@ export default async function AdminPage() {
           </p>
           <p className="mt-1">
             Money was taken and the add-on is not switched on. Check each order
-            in PayPal and either apply it by hand or refund it.
+            in PayPal and either apply it by hand or refund it. Applying it
+            clears the row on its own; after a refund, say so here — otherwise
+            a settled case sits in this box forever.
           </p>
           <ul className="mt-2 space-y-1">
             {ungranted.map((p) => (
@@ -257,6 +272,7 @@ export default async function AdminPage() {
                 {usd(p.amountCents)} · {ADDON_LABEL[p.addon] ?? p.addon} ·{" "}
                 {jobTitleById.get(p.jobId)?.title ?? "(posting deleted)"} ·
                 order {p.paypalOrderId}
+                <ResolvePayment orderId={p.paypalOrderId} />
               </li>
             ))}
           </ul>

@@ -178,6 +178,23 @@ export async function POST(request: Request) {
       `[payments] CAPTURED BUT NOT GRANTED — order ${orderId}, capture ${capture.captureId}:`,
       err,
     );
+
+    // Mark it unresolved as well as logging it.
+    //
+    // If the failure was the status update itself, the row is still 'created' —
+    // which the Admin page reads as an abandoned checkout, keeps out of the
+    // paid-but-inactive alert, and does not block a second purchase. The
+    // clearest state on the whole site (COMPLETED capture, money definitely
+    // moved) was showing up as "buyer closed the cart".
+    await markPaymentFailed(
+      orderId,
+      `${UNRESOLVED_NOTE_PREFIX}: captured ${capture.captureId} but not recorded — ${String(err)}`,
+    ).catch((markErr) =>
+      console.error(
+        `[payments] could not even mark order ${orderId} unresolved:`,
+        markErr,
+      ),
+    );
     return Response.json(
       {
         error:
