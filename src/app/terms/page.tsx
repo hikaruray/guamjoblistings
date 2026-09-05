@@ -82,6 +82,29 @@ export default function TermsPage() {
           </p>
         </Section>
 
+        {/* Written before taking a single payment, deliberately. Deciding what
+            we owe someone after their money is already in our account is how
+            you end up deciding it in your own favour. */}
+        <Section title="Refunds">
+          <p>
+            If we remove your posting after you have paid for an add-on on it,
+            we refund the unused part of what you paid. If an add-on you paid
+            for did not switch on, tell us and we will either apply it or refund
+            it in full.
+          </p>
+          <p>
+            We do not refund an add-on that ran for the period you bought
+            because the posting did not get the applicants you hoped for — it
+            buys where your posting appears, not results. Closing or editing
+            your own posting does not pause an add-on: the days keep running,
+            so close it when you mean to.
+          </p>
+          <p>
+            Ask by replying to any of our emails, or through the contact page.
+            Refunds are returned to the PayPal account that paid.
+          </p>
+        </Section>
+
         <Section title="What we do not guarantee">
           <p>
             We do not guarantee that a posting will produce applicants, that an

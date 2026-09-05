@@ -17,6 +17,7 @@ export default function DashboardJobActions({
   status,
   expiresAt,
   promotable = false,
+  paidAddonActive = false,
 }: {
   id: string;
   status: string;
@@ -24,6 +25,10 @@ export default function DashboardJobActions({
   // Only true when add-ons can actually be bought (PayPal keys present on the
   // server). Never advertise a checkout that answers 503.
   promotable?: boolean;
+  // True while a paid add-on is still running on this posting. Closing does not
+  // pause it — the days keep counting — so the person about to throw their own
+  // money away should be the one told.
+  paidAddonActive?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<Action | null>(null);
@@ -34,7 +39,9 @@ export default function DashboardJobActions({
     if (
       action === "close" &&
       !confirm(
-        "Close this posting? It will be removed from the public listings. You can reopen it any time.",
+        paidAddonActive
+          ? "Close this posting? You have a paid add-on running on it, and closing does NOT pause it — the days you bought keep counting down while it is closed. Reopening also sends it back through review. Close it anyway?"
+          : "Close this posting? It will be removed from the public listings. You can reopen it any time.",
       )
     ) {
       return;
@@ -88,6 +95,15 @@ export default function DashboardJobActions({
           {done === "renewed" ? "Renewed. " : ""}Want it seen first? Feature it
           or add an Urgent badge below — jobseekers see promoted roles at the
           top of the board.
+          {/* Buying 10 days of prominence on a posting with 2 days left buys 2
+              days of prominence. Same mismatch the 30-vs-10 fix removed, one
+              size smaller, and only the employer can see it coming. */}
+          {left !== null && left > 0 && left < 10 && (
+            <span className="mt-1 block font-medium text-cyan-900">
+              This posting comes down in {left} day{left === 1 ? "" : "s"}. Renew
+              it first — it&apos;s free — or the days you buy run out with it.
+            </span>
+          )}
         </p>
       )}
       <div className="flex flex-wrap items-center justify-end gap-4">

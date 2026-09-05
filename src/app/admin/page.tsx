@@ -109,12 +109,41 @@ export default async function AdminPage() {
   // was no way to notice; now it is the first thing on this page when it
   // happens. Also catches a paid add-on whose window has run out while the
   // posting sat closed, which is a refund conversation, not a bug.
+  // Judged against when the money was taken, never against "now".
+  //
+  // Comparing the add-on's end date to the current time was wrong in a way that
+  // got worse with success: a purchase that worked perfectly ends 10 days after
+  // it was paid for, so on day 11 every healthy sale fell into this list and
+  // stayed there. The alert would have filled with normal revenue and buried
+  // the one real failure it exists to surface. A grant that happened always
+  // pushes the end date past the moment of payment, so that is the comparison.
   const ungranted = paidPayments.filter((p) => {
     const job = jobTitleById.get(p.jobId);
     if (!job) return true; // paid against a posting that no longer exists
-    const until = p.addon === "featured" ? job.featuredUntil : job.urgentUntil;
-    return until == null || new Date(until).getTime() <= Date.now();
+    // Explicit per-addon lookup rather than a two-way branch: a retired addon
+    // id (the 2026-08-29 "extension") would otherwise be checked against
+    // urgentUntil and flagged forever. None exist today — payments is empty —
+    // but the branch would have been wrong the moment one did.
+    const until =
+      p.addon === "featured"
+        ? job.featuredUntil
+        : p.addon === "urgent"
+          ? job.urgentUntil
+          : undefined;
+    if (until === undefined) return false; // unknown/retired addon: not ours to judge
+    if (until == null) return true;
+    const paidAt = new Date(p.paidAt ?? p.createdAt).getTime();
+    return new Date(until).getTime() <= paidAt;
   });
+
+  // Orders where we do not know whether the money moved. capture-order writes
+  // these when the PayPal call threw — a timeout can mean the capture succeeded
+  // — so they are more urgent than a clean failure, not less. They are 'failed'
+  // rows, which the revenue table excludes, so without this they appeared
+  // nowhere but a truncated cell in the ledger and a server log nobody reads.
+  const unknownOutcome = payments.filter(
+    (p) => p.status === "failed" && p.errorNote?.startsWith("Outcome unknown"),
+  );
 
   // Live listings someone has paid to promote. The reviewer needs this before
   // pressing Unpublish: taking down a posting that was featured yesterday is a
@@ -124,7 +153,12 @@ export default async function AdminPage() {
       .filter((p) => {
         const job = jobTitleById.get(p.jobId);
         if (!job) return false;
-        const until = p.addon === "featured" ? job.featuredUntil : job.urgentUntil;
+        const until =
+          p.addon === "featured"
+            ? job.featuredUntil
+            : p.addon === "urgent"
+              ? job.urgentUntil
+              : null;
         return until != null && new Date(until).getTime() > Date.now();
       })
       .map((p) => p.jobId),
@@ -167,6 +201,30 @@ export default async function AdminPage() {
       <p className="mt-1 text-sm text-slate-500">
         Business overview — listings, applicants, matching and revenue.
       </p>
+
+      {unknownOutcome.length > 0 && (
+        <div className="mt-4 rounded-xl border border-rose-400 bg-rose-100 p-4 text-sm text-rose-900">
+          <p className="font-semibold">
+            {unknownOutcome.length} payment
+            {unknownOutcome.length === 1 ? "" : "s"} with an unknown outcome.
+          </p>
+          <p className="mt-1">
+            We lost contact with PayPal mid-capture, so the money may or may not
+            have moved. Open each order in PayPal: if it was captured, apply the
+            add-on by hand or refund it; if it was not, nothing to do. The buyer
+            has been told not to pay again.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {unknownOutcome.map((p) => (
+              <li key={p.id}>
+                {usd(p.amountCents)} · {ADDON_LABEL[p.addon] ?? p.addon} ·{" "}
+                {jobTitleById.get(p.jobId)?.title ?? "(posting deleted)"} · order{" "}
+                {p.paypalOrderId}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {ungranted.length > 0 && (
         <div className="mt-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800">

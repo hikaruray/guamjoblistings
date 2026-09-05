@@ -967,3 +967,39 @@ export async function jobStatusesForPublicIds(
   }
   return out;
 }
+
+// Payments for one job+addon whose outcome we never resolved.
+//
+// Used to refuse a second checkout for something that may already have been
+// paid for. When a capture throws we cannot tell whether the money moved, and
+// we tell the buyer not to pay again — but telling them was the whole defence:
+// create-order looked at nothing, so pressing Buy again simply opened a fresh
+// order and charged them twice.
+export async function unresolvedPaymentsFor(
+  jobId: string,
+  addon: string,
+): Promise<StoredPayment[]> {
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("payments")
+      .select("*")
+      .eq("job_id", jobId)
+      .eq("addon", addon)
+      .eq("status", "failed")
+      .like("error_note", "Outcome unknown%");
+    if (error) {
+      throw new Error(`Failed to check pending payments: ${error.message}`);
+    }
+    return (data ?? []).map(rowToPayment);
+  }
+
+  return (await readFile()).payments.filter(
+    (p) =>
+      p.jobId === jobId &&
+      p.addon === addon &&
+      p.status === "failed" &&
+      (p.errorNote ?? "").startsWith("Outcome unknown"),
+  );
+}

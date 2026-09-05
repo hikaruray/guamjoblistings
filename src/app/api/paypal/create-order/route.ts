@@ -1,6 +1,10 @@
 import { addonFor, centsToPaypalValue } from "@/lib/addons";
 import { createCaptureOrder, isPaypalConfigured } from "@/lib/paypal";
-import { createPayment, getJobById } from "@/lib/store";
+import {
+  createPayment,
+  getJobById,
+  unresolvedPaymentsFor,
+} from "@/lib/store";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
 
 // See the note in capture-order: give the request more room than the 12s the
@@ -99,6 +103,32 @@ export async function POST(request: Request) {
           "This posting has expired and is not being shown. Renew it (free) and then promote it.",
       },
       { status: 409 },
+    );
+  }
+
+  // Refuse to sell the same thing twice while an earlier attempt is unresolved.
+  //
+  // When a capture times out we cannot tell whether the money moved, so we ask
+  // the buyer not to pay again — and asking was the entire defence. Pressing
+  // Buy again opened a brand new order and charged them a second time, which is
+  // exactly the outcome that warning exists to prevent.
+  try {
+    const unresolved = await unresolvedPaymentsFor(job.id, addon.id);
+    if (unresolved.length > 0) {
+      return Response.json(
+        {
+          error:
+            "An earlier payment for this add-on has not been resolved yet — it may already have gone through. Please contact us before paying again rather than risking a double charge.",
+        },
+        { status: 409 },
+      );
+    }
+  } catch (err) {
+    // A failure to check must not open a checkout we cannot reason about.
+    console.error("[payments] could not check unresolved payments:", err);
+    return Response.json(
+      { error: "We could not start checkout just now. Please try again." },
+      { status: 503 },
     );
   }
 
