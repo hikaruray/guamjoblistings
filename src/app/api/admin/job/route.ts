@@ -28,6 +28,15 @@ export async function POST(request: Request) {
     return Response.json({ error: "Bad parameters." }, { status: 400 });
   }
 
+  // Enforced here as well as in the UI: the employer's only signal that we
+  // removed a listing, rather than them closing it, is that a reason is stored.
+  if (action === "unpublish" && !rejectionReason?.trim()) {
+    return Response.json(
+      { error: "A reason is required when taking a listing down." },
+      { status: 400 },
+    );
+  }
+
   // Read before writing: the employer's address and the posting title are only
   // needed for the email, but fetching afterwards would race the update.
   let job = null;

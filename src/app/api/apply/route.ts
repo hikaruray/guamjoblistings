@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     `We keep applicants' personal details on the site rather than in email, so`,
     `they stay with the people who need them.`,
     ``,
-    `— Sent via Guam Job Listings (www.guamjoblisting.com)`,
+    `— Sent via Guam Job Listings (${SITE_URL})`,
   ].join("\n");
 
   // Confirmation copy for the applicant, so they have their application in

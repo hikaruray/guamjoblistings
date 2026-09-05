@@ -129,21 +129,31 @@ async function notifyReopened(
     return;
   }
 
+  // Independent sends — see the same note in update-job. In sequence, a failure
+  // reaching the reviewer also silently cancelled the employer's copy.
   const resend = new Resend(apiKey);
-  await resend.emails.send({
-    from: FROM_EMAIL,
-    to: OWNER_COPY_EMAIL,
-    replyTo: job?.email,
-    subject: `Back for review: ${title}${company ? ` — ${company}` : ""}`,
-    text: reviewerText,
-  });
-
-  if (job?.email) {
-    await resend.emails.send({
+  const sends = [
+    resend.emails.send({
       from: FROM_EMAIL,
-      to: job.email,
-      subject: `"${title}" is back with us for review`,
-      text: employerText,
-    });
+      to: OWNER_COPY_EMAIL,
+      replyTo: job?.email,
+      subject: `Back for review: ${title}${company ? ` — ${company}` : ""}`,
+      text: reviewerText,
+    }),
+  ];
+  if (job?.email) {
+    sends.push(
+      resend.emails.send({
+        from: FROM_EMAIL,
+        to: job.email,
+        subject: `"${title}" is back with us for review`,
+        text: employerText,
+      }),
+    );
+  }
+  for (const r of await Promise.allSettled(sends)) {
+    if (r.status === "rejected") {
+      console.error(`[REOPEN NOTICE NOT DELIVERED] job=${id}`, r.reason);
+    }
   }
 }

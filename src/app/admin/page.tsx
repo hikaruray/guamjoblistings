@@ -48,7 +48,13 @@ export default async function AdminPage() {
   const daysAgo = (iso: string) => (now - new Date(iso).getTime()) / 86_400_000;
 
   // ── Supply (employers & listings) ────────────────────────────────────
-  const liveJobs = pendingJobs.filter((j) => j.status === "approved");
+  // Approved and still inside its window. Counting every approved row as live
+  // made this number drift from what /jobs actually shows, and an expired
+  // posting kept a green "Live" badge in the queue below.
+  const isLive = (j: (typeof pendingJobs)[number]) =>
+    j.status === "approved" &&
+    (j.expiresAt == null || new Date(j.expiresAt).getTime() > Date.now());
+  const liveJobs = pendingJobs.filter(isLive);
   const awaitingReview = pendingJobs.filter((j) => j.status === "pending").length;
   const closedJobs = pendingJobs.filter((j) => j.status === "closed").length;
   // Unique employers = distinct account (fall back to company name for legacy rows)
@@ -336,10 +342,18 @@ export default async function AdminPage() {
                     })()}
                   </td>
                   <td className="px-4 py-3">
+                    {/* Same rule as the Live count above and the employer's own
+                        dashboard: approved but past its window is not live. */}
                     <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${STATUS_STYLE[job.status]}`}
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${
+                        job.status === "approved" && !isLive(job)
+                          ? "bg-slate-200 text-slate-600"
+                          : STATUS_STYLE[job.status]
+                      }`}
                     >
-                      {job.status}
+                      {job.status === "approved" && !isLive(job)
+                        ? "expired"
+                        : job.status}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">

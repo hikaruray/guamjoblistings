@@ -24,13 +24,25 @@ export default function JobActions({
     let rejectionReason: string | undefined;
 
     if (action === "reject" || action === "unpublish") {
+      // Rejecting may be generic; taking a live listing down may not.
+      //
+      // The employer's dashboard tells "we removed this" apart from "you closed
+      // this" by whether a reason is stored — so a blank reason silently puts
+      // the employer back where they started: a grey Closed badge, a Reopen
+      // button, and no idea we were involved. If the distinction rests on the
+      // reason, the reason cannot be optional.
       const r = prompt(
         action === "reject"
           ? "Reason for not approving (shown to the employer). Leave blank for a generic message:"
-          : "Reason for taking this down (emailed to the employer). Leave blank for a generic message:",
+          : "Why are you taking this down? The employer sees this, and it is how they can tell we removed it rather than assuming they closed it themselves:",
       );
       if (r === null) return; // cancelled
       rejectionReason = r.trim() || undefined;
+
+      if (action === "unpublish" && !rejectionReason) {
+        setErr("Please give a reason — the employer only sees that we took it down if you do.");
+        return;
+      }
     }
 
     setBusy(true);

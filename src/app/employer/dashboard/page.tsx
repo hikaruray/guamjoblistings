@@ -36,6 +36,18 @@ const STATUS_STYLE: Record<string, string> = {
   closed: "bg-slate-200 text-slate-600",
 };
 
+// Approved but past its window: off the board, so it is not "Live" and there is
+// nothing to promote. Used by the badge and by the add-on panel, which used to
+// disagree — the day PayPal keys land, "Expired" and "Feature it" would have
+// appeared on the same card.
+function isExpired(job: { status: string; expiresAt?: string | null }): boolean {
+  return (
+    job.status === "approved" &&
+    job.expiresAt != null &&
+    new Date(job.expiresAt).getTime() <= Date.now()
+  );
+}
+
 export default async function EmployerDashboardPage({
   searchParams,
 }: {
@@ -119,7 +131,7 @@ export default async function EmployerDashboardPage({
       <CompanyDetails
         profile={profile}
         email={user.email ?? ""}
-        returnToPosting={needCompanyDetails}
+        returnToPosting={needCompanyDetails && !profile}
       />
 
       {jobs.length === 0 ? (
@@ -170,10 +182,7 @@ export default async function EmployerDashboardPage({
                           the line underneath says it has expired put two
                           contradictory claims on one card. */}
                       {(() => {
-                        const expired =
-                          job.status === "approved" &&
-                          job.expiresAt != null &&
-                          new Date(job.expiresAt).getTime() <= Date.now();
+                        const expired = isExpired(job);
                         const label = expired
                           ? "Expired"
                           : (STATUS_LABEL[job.status] ?? job.status);
@@ -236,7 +245,7 @@ export default async function EmployerDashboardPage({
                   />
                   {/* Only a live listing can be promoted — mirrors the server
                       check in /api/paypal/create-order. */}
-                  {addonsEnabled && job.status === "approved" && (
+                  {addonsEnabled && job.status === "approved" && !isExpired(job) && (
                     <PromoteJob
                       jobId={job.id}
                       addons={addons}

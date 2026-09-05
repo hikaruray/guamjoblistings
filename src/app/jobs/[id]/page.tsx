@@ -98,7 +98,15 @@ export default async function JobDetailPage({
 
         <div className="mt-6 border-t border-slate-100 pt-6">
           <h2 className="font-semibold text-slate-900">About the role</h2>
-          <p className="mt-2 leading-relaxed text-slate-600">{job.description}</p>
+          {/* whitespace-pre-wrap: an employer types a posting with blank lines
+              and bullet-ish line breaks, and this rendered it as one block.
+              The Admin review screen already honours them, so the reviewer was
+              reading something better formatted than the public page. That
+              matters more now that the empty Responsibilities and Requirements
+              headings are gone and this is the whole posting. */}
+          <p className="mt-2 whitespace-pre-wrap leading-relaxed text-slate-600">
+            {job.description}
+          </p>
         </div>
 
         {/* Only shown when there is something to show. The posting form asks

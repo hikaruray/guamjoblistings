@@ -29,24 +29,35 @@ export default async function MyApplicationsPage() {
   // forever, including ones whose listing was filled or taken down weeks ago —
   // so an applicant waiting to hear back has no way to know they are waiting
   // for nothing.
-  const jobStates = await jobStatusesForPublicIds(
-    applications.map((a) => a.jobId),
-  ).catch(() => new Map());
+  // Annotated so the fallback stays the same type as the success value — an
+  // untyped `new Map()` here widens to Map<any, any> and quietly switches off
+  // the checking on s.status below.
+  const jobStates: Awaited<ReturnType<typeof jobStatusesForPublicIds>> =
+    await jobStatusesForPublicIds(applications.map((a) => a.jobId)).catch(
+      () => new Map(),
+    );
 
-  function listingNote(jobId: string): string | null {
+  function listingState(
+    jobId: string,
+  ): { badge: string; note: string } | null {
     const s = jobStates.get(jobId);
     if (!s) return null;
     if (s.status === "closed" || s.status === "rejected") {
-      return "This listing has come down.";
+      return { badge: "Listing closed", note: "This listing has come down." };
     }
     if (
       s.status === "approved" &&
       s.expiresAt &&
       new Date(s.expiresAt).getTime() <= Date.now()
     ) {
-      return "This listing has expired.";
+      return { badge: "Listing expired", note: "This listing has expired." };
     }
-    if (s.status === "pending") return "This listing is being re-reviewed.";
+    if (s.status === "pending") {
+      return {
+        badge: "In review",
+        note: "This listing is being reviewed again.",
+      };
+    }
     return null;
   }
 
@@ -93,20 +104,37 @@ export default async function MyApplicationsPage() {
                     <p className="font-semibold text-slate-900">{a.jobTitle}</p>
                     <p className="text-sm text-slate-500">{a.company}</p>
                   </div>
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                    Sent
-                  </span>
+                  {/* "Sent" was the only badge an application ever wore, so a
+                      listing that came down weeks ago still looked live. */}
+                  {(() => {
+                    const st = listingState(a.jobId);
+                    return (
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          st
+                            ? "bg-slate-200 text-slate-600"
+                            : "bg-emerald-100 text-emerald-700"
+                        }`}
+                      >
+                        {st ? st.badge : "Sent"}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <p className="mt-2 text-xs text-slate-400">
-                  Applied {new Date(a.createdAt).toLocaleDateString()} · sent to
-                  the employer with your contact details
+                  Applied {new Date(a.createdAt).toLocaleDateString()} · the
+                  employer reads it, with your contact details, signed in to
+                  this site
                 </p>
-                {listingNote(a.jobId) && (
-                  <p className="mt-1 text-xs text-slate-500">
-                    {listingNote(a.jobId)} Your application still reached them —
-                    they can read it whenever they sign in.
-                  </p>
-                )}
+                {(() => {
+                  const st = listingState(a.jobId);
+                  return st ? (
+                    <p className="mt-1 text-xs text-slate-500">
+                      {st.note} Your application still reached them — they can
+                      read it whenever they sign in.
+                    </p>
+                  ) : null;
+                })()}
                 {a.message && (
                   <p className="mt-2 max-w-xl text-xs text-slate-500">
                     &ldquo;{a.message}&rdquo;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BLOG_POSTS, getPost } from "@/lib/blog-posts";
+import { SITE_URL } from "@/lib/config";
 
 // Migrated blog articles live at the site root (same paths as the old
 // WordPress site) to preserve SEO — e.g.
@@ -61,7 +62,10 @@ export default async function BlogPostPage({
     dateModified: post.modified,
     author: { "@type": "Organization", name: "Guam Job Listings" },
     publisher: { "@type": "Organization", name: "Guam Job Listings" },
-    mainEntityOfPage: `https://www.guamjoblisting.com/${post.slug}`,
+    // Follow the deployment, like the sitemap and robots do. A literal www here
+    // tells Google the canonical page for this article lives on a host that
+    // answers 308 — on the very pages the migration was fought to keep.
+    mainEntityOfPage: `${SITE_URL}/${post.slug}`,
   };
 
   return (

@@ -14,15 +14,16 @@ export const metadata = {
   alternates: { canonical: "/faq" },
 };
 
-const FAQS: { q: string; a: React.ReactNode }[] = [
+// `addonsOnly` marks anything that describes the paid add-ons. Filtering on
+// the question text was too fragile — rewording a question silently switched
+// the filter off, and it only ever matched one of the two entries.
+const FAQS: { q: string; a: React.ReactNode; addonsOnly?: boolean }[] = [
   {
     q: "Does it cost anything to post a job?",
     a: (
       <>
         No. Posting is free, with no limit on the number of roles and no
-        contract. Optional paid add-ons are available from the employer
-        dashboard if you want a listing to stand out, but a free posting appears
-        on the board like any other.
+        contract.
       </>
     ),
   },
@@ -91,6 +92,7 @@ const FAQS: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "What do the paid options do?",
+    addonsOnly: true,
     a: (
       <>
         They buy attention, never time on the board. A{" "}
@@ -149,7 +151,7 @@ export default function FaqPage() {
       </header>
 
       <div className="mt-6 divide-y divide-slate-100">
-        {FAQS.filter((item) => ADDONS_AVAILABLE || !item.q.includes("paid options")).map((item) => (
+        {FAQS.filter((item) => ADDONS_AVAILABLE || !item.addonsOnly).map((item) => (
           <details key={item.q} className="group py-4">
             <summary className="cursor-pointer list-none font-semibold text-slate-900 marker:hidden">
               <span className="mr-2 inline-block text-cyan-600 transition group-open:rotate-90">

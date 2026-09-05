@@ -24,6 +24,7 @@ export async function POST(request: Request) {
   }
 
   // Verify the signed-in employer owns this posting before allowing an edit.
+  let wasLive = false;
   if (isAuthConfigured()) {
     const user = await getSessionUser();
     if (!user) {
@@ -42,6 +43,10 @@ export async function POST(request: Request) {
         { status: 403 },
       );
     }
+    // Editing a rejected or closed posting is allowed — it is exactly what the
+    // rejection email tells employers to do — so the notification must not
+    // claim we have taken it off the board when it was never on it.
+    wasLive = job.status === "approved";
   }
 
   try {
@@ -72,7 +77,7 @@ export async function POST(request: Request) {
   // door, and it is the door the rejection email tells employers to use.
   //
   // Best-effort: the edit is saved and that is what matters.
-  await notifyResubmitted(id, title, company, email).catch((err) =>
+  await notifyResubmitted(id, title, company, email, wasLive).catch((err) =>
     console.error("Failed to notify of edited listing:", err),
   );
 
@@ -84,6 +89,7 @@ async function notifyResubmitted(
   title: string,
   company: string,
   contactEmail: string,
+  wasLive: boolean,
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
 
@@ -104,9 +110,10 @@ async function notifyResubmitted(
     ``,
     `${title} — ${company}`,
     ``,
-    `Editing sends a posting back through review, so it has come off the board`,
-    `for now. That is deliberate: what job seekers read should be something an`,
-    `employer confirmed recently. We'll email you the moment it is live again.`,
+    wasLive
+      ? `Editing sends a posting back through review, so it has come off the board for now. That is deliberate: what job seekers read should be something an employer confirmed recently.`
+      : `Your changes go through review before the posting goes on the board.`,
+    `We'll email you the moment it is live.`,
     ``,
     `${SITE_URL}/employer/dashboard`,
     ``,
@@ -120,18 +127,28 @@ async function notifyResubmitted(
     return;
   }
 
+  // Independent sends. Awaiting them in sequence meant one failure took the
+  // other with it — and the one that matters most, the reviewer being told
+  // something is waiting, was first in line.
   const resend = new Resend(apiKey);
-  await resend.emails.send({
-    from: FROM_EMAIL,
-    to: OWNER_COPY_EMAIL,
-    replyTo: contactEmail,
-    subject: `Back for review (edited): ${title} — ${company}`,
-    text: reviewerText,
-  });
-  await resend.emails.send({
-    from: FROM_EMAIL,
-    to: contactEmail,
-    subject: `"${title}" is back with us for review`,
-    text: employerText,
-  });
+  const results = await Promise.allSettled([
+    resend.emails.send({
+      from: FROM_EMAIL,
+      to: OWNER_COPY_EMAIL,
+      replyTo: contactEmail,
+      subject: `Back for review (edited): ${title} — ${company}`,
+      text: reviewerText,
+    }),
+    resend.emails.send({
+      from: FROM_EMAIL,
+      to: contactEmail,
+      subject: `"${title}" is back with us for review`,
+      text: employerText,
+    }),
+  ]);
+  for (const r of results) {
+    if (r.status === "rejected") {
+      console.error(`[EDIT NOTICE NOT DELIVERED] job=${id}`, r.reason);
+    }
+  }
 }

@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { FROM_EMAIL, OWNER_COPY_EMAIL } from "@/lib/config";
+import { FROM_EMAIL, OWNER_COPY_EMAIL, SITE_URL } from "@/lib/config";
 import { addPendingJob, getEmployerProfile } from "@/lib/store";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
 
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
     `Description:`,
     description,
     ``,
-    `— Submitted via Guam Job Listings (www.guamjoblisting.com)`,
+    `— Submitted via Guam Job Listings (${SITE_URL})`,
   ].join("\n");
 
   const apiKey = process.env.RESEND_API_KEY;
