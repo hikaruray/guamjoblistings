@@ -101,6 +101,35 @@ export default async function AdminPage() {
   // Job title lookup so the ledger reads as names, not uuids.
   const jobTitleById = new Map(pendingJobs.map((j) => [j.id, j]));
 
+  // Money taken where the thing bought is not actually switched on.
+  //
+  // capture-order marks a payment 'paid' and then grants the add-on, in that
+  // order and not atomically, so a grant that fails leaves a paid row against a
+  // posting with no add-on — counted as revenue, invisible everywhere. There
+  // was no way to notice; now it is the first thing on this page when it
+  // happens. Also catches a paid add-on whose window has run out while the
+  // posting sat closed, which is a refund conversation, not a bug.
+  const ungranted = paidPayments.filter((p) => {
+    const job = jobTitleById.get(p.jobId);
+    if (!job) return true; // paid against a posting that no longer exists
+    const until = p.addon === "featured" ? job.featuredUntil : job.urgentUntil;
+    return until == null || new Date(until).getTime() <= Date.now();
+  });
+
+  // Live listings someone has paid to promote. The reviewer needs this before
+  // pressing Unpublish: taking down a posting that was featured yesterday is a
+  // refund the buyer will (rightly) ask for, and there is no refund flow.
+  const paidJobIds = new Set(
+    paidPayments
+      .filter((p) => {
+        const job = jobTitleById.get(p.jobId);
+        if (!job) return false;
+        const until = p.addon === "featured" ? job.featuredUntil : job.urgentUntil;
+        return until != null && new Date(until).getTime() > Date.now();
+      })
+      .map((p) => p.jobId),
+  );
+
   const ADDON_LABEL: Record<string, string> = {
     featured: "Featured",
     urgent: "Urgent badge",
@@ -138,6 +167,28 @@ export default async function AdminPage() {
       <p className="mt-1 text-sm text-slate-500">
         Business overview — listings, applicants, matching and revenue.
       </p>
+
+      {ungranted.length > 0 && (
+        <div className="mt-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800">
+          <p className="font-semibold">
+            {ungranted.length} paid add-on
+            {ungranted.length === 1 ? " is" : "s are"} not active.
+          </p>
+          <p className="mt-1">
+            Money was taken and the add-on is not switched on. Check each order
+            in PayPal and either apply it by hand or refund it.
+          </p>
+          <ul className="mt-2 space-y-1">
+            {ungranted.map((p) => (
+              <li key={p.id}>
+                {usd(p.amountCents)} · {ADDON_LABEL[p.addon] ?? p.addon} ·{" "}
+                {jobTitleById.get(p.jobId)?.title ?? "(posting deleted)"} ·
+                order {p.paypalOrderId}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* ── Overview ─────────────────────────────────────────────── */}
       <h2 className="mt-8 text-lg font-bold text-slate-900">Overview</h2>
@@ -357,6 +408,14 @@ export default async function AdminPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
+                    {/* There is no refund flow, so the reviewer has to know
+                        before pressing Unpublish that this employer has paid
+                        for prominence that is still running. */}
+                    {paidJobIds.has(job.id) && (
+                      <p className="mb-1 text-xs font-medium text-amber-700">
+                        Paid add-on active — refund conversation
+                      </p>
+                    )}
                     {job.status === "pending" || job.status === "approved" ? (
                       <JobActions jobId={job.id} status={job.status} />
                     ) : (

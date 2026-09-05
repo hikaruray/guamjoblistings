@@ -6,6 +6,12 @@ import {
 } from "@/lib/store";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
 
+// The PayPal client aborts a call at 12s. If the function itself is killed
+// sooner — maxDuration otherwise being whatever the platform picks — we never
+// reach the code that records what happened, and money can move with no trace
+// on our side. Give the request comfortably more room than the client has.
+export const maxDuration = 30;
+
 // Captures an approved PayPal order and grants the add-on.
 //
 // This is THE ONLY place in the codebase that grants a paid add-on, and it does
@@ -68,16 +74,46 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, alreadyDone: true });
   }
 
+  // A row we previously marked 'failed' must never be quietly retried here.
+  // PayPal answers ORDER_ALREADY_CAPTURED for an order that did go through,
+  // captureOrder turns that into a success, and the compare-and-set below then
+  // updates nothing because the row is not 'created' — so the buyer saw "your
+  // add-on is active" for money we took and an add-on we never granted.
+  if (payment.status === "failed") {
+    console.error(
+      `[payments] RETRY ON FAILED ORDER — order ${orderId}. Check PayPal before telling the buyer anything.`,
+    );
+    return Response.json(
+      {
+        error:
+          "This checkout was already closed as unsuccessful. Please contact us before paying again so we can check whether it went through — do not re-purchase.",
+      },
+      { status: 409 },
+    );
+  }
+
   let capture;
   try {
     capture = await captureOrder(orderId);
   } catch (err) {
-    // Declined / abandoned / PayPal error → record it and grant NOTHING.
-    console.error("PayPal capture failed:", err);
-    await markPaymentFailed(orderId, String(err));
+    // We do NOT know whether the money moved.
+    //
+    // captureOrder aborts after 12s and does not retry, so a slow network or a
+    // timeout throws here even when PayPal completed the capture. This used to
+    // answer "You have not been charged." — a statement we cannot make. Anyone
+    // who believed it and bought again would have paid twice, and the row is
+    // excluded from the Admin revenue table, so nobody would have noticed.
+    console.error(
+      `[payments] CAPTURE OUTCOME UNKNOWN — order ${orderId}. Check PayPal for this order before refunding or re-charging:`,
+      err,
+    );
+    await markPaymentFailed(orderId, `Outcome unknown: ${String(err)}`);
     return Response.json(
-      { error: "Payment was not completed. You have not been charged." },
-      { status: 402 },
+      {
+        error:
+          "We lost contact with PayPal while completing this payment, so we cannot tell you yet whether it went through. Please do NOT pay again — contact us and we will check and either apply your add-on or refund you.",
+      },
+      { status: 502 },
     );
   }
 

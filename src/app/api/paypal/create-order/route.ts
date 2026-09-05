@@ -3,6 +3,10 @@ import { createCaptureOrder, isPaypalConfigured } from "@/lib/paypal";
 import { createPayment, getJobById } from "@/lib/store";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
 
+// See the note in capture-order: give the request more room than the 12s the
+// PayPal client allows itself, so we always reach our own bookkeeping.
+export const maxDuration = 30;
+
 // Opens a PayPal order (intent=CAPTURE) for one add-on on one job.
 //
 // SECURITY — the three holes this route is written to close:
@@ -79,6 +83,20 @@ export async function POST(request: Request) {
       {
         error:
           "This posting is not live yet. You can promote it once it has been approved.",
+      },
+      { status: 409 },
+    );
+  }
+  // ...and "approved" is not the same as "on the board". An approved posting
+  // past its window is not shown to anyone, so featuring it buys nothing at
+  // all. The dashboard's comment claimed it mirrored a server check for this;
+  // the server had no such check, so the claim was describing a defence that
+  // did not exist.
+  if (job.expiresAt != null && new Date(job.expiresAt).getTime() <= Date.now()) {
+    return Response.json(
+      {
+        error:
+          "This posting has expired and is not being shown. Renew it (free) and then promote it.",
       },
       { status: 409 },
     );

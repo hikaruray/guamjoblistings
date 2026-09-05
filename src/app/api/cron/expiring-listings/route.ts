@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { FROM_EMAIL, SITE_URL } from "@/lib/config";
+import { FROM_EMAIL, SITE_URL, PAYPAL_ENABLED } from "@/lib/config";
 import { addonViews } from "@/lib/addons";
 import { isPaypalConfigured } from "@/lib/paypal";
 import {
@@ -61,7 +61,10 @@ export async function GET(request: Request) {
 
   // Only mention paid options when they can actually be bought. Advertising a
   // checkout that answers 503 is worse than staying quiet about it.
-  const promo = isPaypalConfigured()
+  // Match the buy button exactly. isPaypalConfigured() alone is the server
+  // half; without the public client id the checkout never renders, so this
+  // email was the one place that could still advertise something unbuyable.
+  const promo = isPaypalConfigured() && PAYPAL_ENABLED
     ? [
         "",
         "While you are there: renewing keeps the role listed, and a paid option keeps it seen.",

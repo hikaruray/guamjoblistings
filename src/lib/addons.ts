@@ -16,9 +16,8 @@
 //   ADDON_PRICE_FEATURED    default 15   (USD, whole or decimal dollars)
 //   ADDON_PRICE_URGENT      default 10
 //   ADDON_PRICE_EXTENSION   default 10
-//   ADDON_DAYS_FEATURED     default 30   (duration in days)
-//   ADDON_DAYS_URGENT       default 30
-//   ADDON_DAYS_EXTENSION    default 30
+//   ADDON_DAYS_FEATURED     default 10   (duration in days)
+//   ADDON_DAYS_URGENT       default 10
 //
 // Set them in Vercel → Project Settings → Environment Variables.
 
@@ -81,14 +80,18 @@ export function addonCatalog(): Record<AddonId, Addon> {
       blurb:
         "Pinned to the top of the job list and the homepage, with a highlighted card.",
       priceCents: priceCents("ADDON_PRICE_FEATURED", 15),
-      days: days("ADDON_DAYS_FEATURED", 30),
+      // Matches LISTING_DAYS. Selling 30 days of prominence on a board where a
+      // posting is only up for 10 meant an employer who forgot the free renewal
+      // paid $15 and got a third of what the checkout said. Owner decision,
+      // 2026-09-04: the two windows are the same length.
+      days: days("ADDON_DAYS_FEATURED", 10),
     },
     urgent: {
       id: "urgent",
       name: "Urgent Badge",
       blurb: 'A bright "Urgent Hiring" badge so jobseekers notice you first.',
       priceCents: priceCents("ADDON_PRICE_URGENT", 10),
-      days: days("ADDON_DAYS_URGENT", 30),
+      days: days("ADDON_DAYS_URGENT", 10),
     },
   };
 }
