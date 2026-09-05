@@ -516,6 +516,19 @@ const ADDON_FIELD: Record<string, "featuredUntil" | "urgentUntil"> = {
   urgent: "urgentUntil",
 };
 
+// Marks a payment row whose money may have moved even though we recorded a
+// failure. Three situations qualify and they must stay in step across the three
+// places that write, query and display them — hence one exported constant
+// rather than the same literal typed out three times:
+//
+//   • the capture call threw (a 12s timeout can mean it succeeded)
+//   • PayPal answered PENDING (an eCheck can settle hours later)
+//   • PayPal charged an amount we did not expect (COMPLETED — money HAS moved)
+//
+// Anything carrying this prefix is money we cannot account for: it is shown on
+// /admin and it blocks a second checkout for the same job and add-on.
+export const UNRESOLVED_NOTE_PREFIX = "Outcome unknown";
+
 export async function createPayment(
   data: Omit<StoredPayment, "id" | "createdAt" | "status" | "paidAt">,
 ): Promise<void> {
@@ -988,7 +1001,7 @@ export async function unresolvedPaymentsFor(
       .eq("job_id", jobId)
       .eq("addon", addon)
       .eq("status", "failed")
-      .like("error_note", "Outcome unknown%");
+      .like("error_note", `${UNRESOLVED_NOTE_PREFIX}%`);
     if (error) {
       throw new Error(`Failed to check pending payments: ${error.message}`);
     }
@@ -1000,6 +1013,37 @@ export async function unresolvedPaymentsFor(
       p.jobId === jobId &&
       p.addon === addon &&
       p.status === "failed" &&
-      (p.errorNote ?? "").startsWith("Outcome unknown"),
+      (p.errorNote ?? "").startsWith(UNRESOLVED_NOTE_PREFIX),
   );
+}
+
+// Clears the "we do not know what happened" marker on a payment, after a human
+// has checked PayPal and decided.
+//
+// Blocking a second checkout while an outcome is unresolved is right, but until
+// now nothing in the app could lift that block: no code path could move a
+// 'failed' row at all, so an employer whose payment turned out NOT to have gone
+// through was told to contact us — and then the person they contacted had no
+// button to press either. The status is deliberately left alone so the revenue
+// figures do not move; only the marker goes.
+export async function resolvePayment(
+  orderId: string,
+  resolution: string,
+): Promise<void> {
+  const note = `Resolved: ${resolution}`;
+  const supabase = getSupabase();
+
+  if (supabase) {
+    const { error } = await supabase
+      .from("payments")
+      .update({ error_note: note })
+      .eq("paypal_order_id", orderId);
+    if (error) throw new Error(`Failed to resolve payment: ${error.message}`);
+    return;
+  }
+
+  const db = await readFile();
+  const p = db.payments.find((x) => x.paypalOrderId === orderId);
+  if (p) p.errorNote = note;
+  await writeFile(db);
 }

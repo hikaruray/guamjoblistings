@@ -3,6 +3,7 @@ import {
   getPaymentByOrderId,
   markPaymentFailed,
   markPaymentPaidAndGrant,
+  UNRESOLVED_NOTE_PREFIX,
 } from "@/lib/store";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
 
@@ -107,7 +108,7 @@ export async function POST(request: Request) {
       `[payments] CAPTURE OUTCOME UNKNOWN — order ${orderId}. Check PayPal for this order before refunding or re-charging:`,
       err,
     );
-    await markPaymentFailed(orderId, `Outcome unknown: ${String(err)}`);
+    await markPaymentFailed(orderId, `${UNRESOLVED_NOTE_PREFIX}: ${String(err)}`);
     return Response.json(
       {
         error:
@@ -120,7 +121,17 @@ export async function POST(request: Request) {
   // Only "COMPLETED" means the money actually moved. PENDING/DECLINED must not
   // grant the add-on.
   if (capture.status !== "COMPLETED") {
-    await markPaymentFailed(orderId, `Capture status: ${capture.status}`);
+    // PENDING is not a clean failure: an eCheck or a review can settle hours
+    // later, and then the money HAS moved while our row says it did not.
+    // Marked as unresolved so it shows on /admin and blocks a second checkout,
+    // exactly like a timeout.
+    const unresolved = capture.status === "PENDING";
+    await markPaymentFailed(
+      orderId,
+      unresolved
+        ? `${UNRESOLVED_NOTE_PREFIX}: PayPal returned PENDING — may settle later`
+        : `Capture status: ${capture.status}`,
+    );
     return Response.json(
       {
         error: `Payment did not complete (status: ${capture.status}). The add-on was not applied.`,
@@ -134,7 +145,10 @@ export async function POST(request: Request) {
   // for the owner rather than guessing.
   const expected = (payment.amountCents / 100).toFixed(2);
   if (capture.amountValue !== expected || (capture.currency ?? "USD") !== "USD") {
-    const note = `Amount mismatch: charged ${capture.amountValue} ${capture.currency}, expected ${expected} USD`;
+    // The capture COMPLETED, so money definitely moved — it is simply not the
+    // amount we recorded. That is the most serious state of all, so it is
+    // marked unresolved rather than filed as an ordinary failure.
+    const note = `${UNRESOLVED_NOTE_PREFIX}: charged ${capture.amountValue} ${capture.currency}, expected ${expected} USD`;
     console.error(`[payments] ${note} (order ${orderId})`);
     await markPaymentFailed(orderId, note);
     return Response.json(

@@ -6,6 +6,7 @@ import {
   type EmployerProfile,
 } from "@/lib/store";
 import JobActions from "./JobActions";
+import ResolvePayment from "./ResolvePayment";
 
 // Always read the latest data (no caching) so new submissions show immediately.
 export const dynamic = "force-dynamic";
@@ -132,8 +133,16 @@ export default async function AdminPage() {
           : undefined;
     if (until === undefined) return false; // unknown/retired addon: not ours to judge
     if (until == null) return true;
+
+    // A successful grant extends from max(now, existing) by the days bought, so
+    // the end date always lands at least that far past the moment of payment.
+    // Comparing only against paidAt would miss the case that matters most in
+    // practice: topping up an add-on before it runs out. There the end date is
+    // already in the future from the first purchase, so a failed second grant
+    // looked healthy. Allow an hour of slack for clock and rounding.
     const paidAt = new Date(p.paidAt ?? p.createdAt).getTime();
-    return new Date(until).getTime() <= paidAt;
+    const expectedAtLeast = paidAt + p.days * 86_400_000 - 3_600_000;
+    return new Date(until).getTime() < expectedAtLeast;
   });
 
   // Orders where we do not know whether the money moved. capture-order writes
@@ -214,12 +223,18 @@ export default async function AdminPage() {
             add-on by hand or refund it; if it was not, nothing to do. The buyer
             has been told not to pay again.
           </p>
+          <p className="mt-1">
+            Until you press <strong>I checked PayPal</strong> on a row, that
+            employer cannot buy that add-on again — which is what stops them
+            paying twice for something that may already have gone through.
+          </p>
           <ul className="mt-2 space-y-1">
             {unknownOutcome.map((p) => (
               <li key={p.id}>
                 {usd(p.amountCents)} · {ADDON_LABEL[p.addon] ?? p.addon} ·{" "}
                 {jobTitleById.get(p.jobId)?.title ?? "(posting deleted)"} · order{" "}
                 {p.paypalOrderId}
+                <ResolvePayment orderId={p.paypalOrderId} />
               </li>
             ))}
           </ul>

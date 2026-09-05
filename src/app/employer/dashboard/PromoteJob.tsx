@@ -51,7 +51,19 @@ export default function PromoteJob({
       body: JSON.stringify({ jobId, addon: selected?.id }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? "Could not start checkout.");
+    if (!res.ok) {
+      // Show the server's reason HERE, before rethrowing.
+      //
+      // The throw goes into PayPal's SDK, which answers every createOrder
+      // rejection with one fixed line: "Something went wrong during payment.
+      // You have not been charged." So the 409 that exists to stop a double
+      // charge — "an earlier payment may already have gone through, contact us
+      // before paying again" — never reached the buyer, and they were told
+      // instead exactly the thing we removed from the capture path for being
+      // something we cannot know.
+      setError(data.error ?? "Could not start checkout.");
+      throw new Error(data.error ?? "Could not start checkout.");
+    }
     return data.id as string;
   }, [jobId, selected]);
 
@@ -87,7 +99,11 @@ export default function PromoteJob({
     [router, selected],
   );
 
-  const onError = useCallback((message: string) => setError(message), []);
+  // The SDK's generic message must not overwrite a reason we already have.
+  const onError = useCallback(
+    (message: string) => setError((prev) => prev ?? message),
+    [],
+  );
   const onCancel = useCallback(() => {
     // Buyer closed PayPal — nothing was charged, nothing was granted.
     setError(null);
