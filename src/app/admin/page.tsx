@@ -4,6 +4,9 @@ import {
   listPayments,
   employerProfilesByUserId,
   UNRESOLVED_NOTE_PREFIX,
+  RESOLVED_NOTE_PREFIX,
+  paymentIsGranted,
+  addonUntil,
   type EmployerProfile,
 } from "@/lib/store";
 import JobActions from "./JobActions";
@@ -125,35 +128,11 @@ export default async function AdminPage() {
   // have kept a settled case forever. Same trap as the unresolved block having
   // no release; this is its twin, one panel over.
   const isResolved = (p: (typeof payments)[number]) =>
-    (p.errorNote ?? "").startsWith("Resolved:");
+    (p.errorNote ?? "").startsWith(RESOLVED_NOTE_PREFIX);
 
-  const ungranted = paidPayments.filter((p) => {
-    if (isResolved(p)) return false;
-    const job = jobTitleById.get(p.jobId);
-    if (!job) return true; // paid against a posting that no longer exists
-    // Explicit per-addon lookup rather than a two-way branch: a retired addon
-    // id (the 2026-08-29 "extension") would otherwise be checked against
-    // urgentUntil and flagged forever. None exist today — payments is empty —
-    // but the branch would have been wrong the moment one did.
-    const until =
-      p.addon === "featured"
-        ? job.featuredUntil
-        : p.addon === "urgent"
-          ? job.urgentUntil
-          : undefined;
-    if (until === undefined) return false; // unknown/retired addon: not ours to judge
-    if (until == null) return true;
-
-    // A successful grant extends from max(now, existing) by the days bought, so
-    // the end date always lands at least that far past the moment of payment.
-    // Comparing only against paidAt would miss the case that matters most in
-    // practice: topping up an add-on before it runs out. There the end date is
-    // already in the future from the first purchase, so a failed second grant
-    // looked healthy. Allow an hour of slack for clock and rounding.
-    const paidAt = new Date(p.paidAt ?? p.createdAt).getTime();
-    const expectedAtLeast = paidAt + p.days * 86_400_000 - 3_600_000;
-    return new Date(until).getTime() < expectedAtLeast;
-  });
+  const ungranted = paidPayments.filter(
+    (p) => !isResolved(p) && !paymentIsGranted(p, jobTitleById.get(p.jobId)),
+  );
 
   // Orders where we do not know whether the money moved. capture-order writes
   // these when the PayPal call threw — a timeout can mean the capture succeeded
@@ -175,12 +154,7 @@ export default async function AdminPage() {
       .filter((p) => {
         const job = jobTitleById.get(p.jobId);
         if (!job) return false;
-        const until =
-          p.addon === "featured"
-            ? job.featuredUntil
-            : p.addon === "urgent"
-              ? job.urgentUntil
-              : null;
+        const until = addonUntil(job, p.addon);
         return until != null && new Date(until).getTime() > Date.now();
       })
       .map((p) => p.jobId),

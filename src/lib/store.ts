@@ -529,6 +529,13 @@ const ADDON_FIELD: Record<string, "featuredUntil" | "urgentUntil"> = {
 // /admin and it blocks a second checkout for the same job and add-on.
 export const UNRESOLVED_NOTE_PREFIX = "Outcome unknown";
 
+// Written by resolvePayment when a human has checked PayPal and decided. Its
+// presence is what lets a row leave the Admin alerts and stop blocking a
+// repurchase, so — like the marker above — it lives in one place. Fixing the
+// unresolved literal and then hardcoding this one in two files would have been
+// the same trap wearing a different word.
+export const RESOLVED_NOTE_PREFIX = "Resolved:";
+
 export async function createPayment(
   data: Omit<StoredPayment, "id" | "createdAt" | "status" | "paidAt">,
 ): Promise<void> {
@@ -988,10 +995,76 @@ export async function jobStatusesForPublicIds(
 // we tell the buyer not to pay again — but telling them was the whole defence:
 // create-order looked at nothing, so pressing Buy again simply opened a fresh
 // order and charged them twice.
+// Has this purchase actually been switched on?
+//
+// Shared by the Admin alert and by the repurchase block so the two can never
+// disagree about what "granted" means. A successful grant extends from
+// max(now, existing) by the days bought, so the end date always lands at least
+// that far past the moment of payment; an hour of slack covers clock skew.
+// Which end-date on the job an add-on controls.
+//
+// `undefined` means an add-on we no longer sell (extension) and whose effect we
+// therefore cannot check. Every place that needs to look at a paid add-on has
+// to answer this same question, and this branch had been copied into each of
+// them; the copies then drifted, which is how a fix landed in one panel of the
+// Admin page and not the one beside it.
+export function addonUntil(
+  job: { featuredUntil?: string | null; urgentUntil?: string | null },
+  addon: string,
+): string | null | undefined {
+  return addon === "featured"
+    ? job.featuredUntil
+    : addon === "urgent"
+      ? job.urgentUntil
+      : undefined;
+}
+
+export function paymentIsGranted(
+  payment: StoredPayment,
+  job: { featuredUntil?: string | null; urgentUntil?: string | null } | undefined,
+): boolean {
+  if (!job) return false;
+  const until = addonUntil(job, payment.addon);
+  if (until === undefined) return true; // retired addon: not ours to judge
+  if (until == null) return false;
+  const paidAt = new Date(payment.paidAt ?? payment.createdAt).getTime();
+  return new Date(until).getTime() >= paidAt + payment.days * 86_400_000 - 3_600_000;
+}
+
+// Payments for one job+addon that a human still has to settle.
+//
+// Two shapes of "money may already be gone", not one:
+//
+//   • a capture whose result we could not read — recorded as failed with the
+//     unresolved marker
+//   • a capture that COMPLETED and was recorded as paid, but whose add-on never
+//     switched on (markPaymentPaidAndGrant writes the status first and grants
+//     second, so a failed grant leaves exactly this)
+//
+// The second shape was visible on the Admin page but nothing stopped the
+// employer buying again — charging them twice for something already paid for.
+// A row a human has resolved is settled and blocks nothing.
 export async function unresolvedPaymentsFor(
   jobId: string,
   addon: string,
 ): Promise<StoredPayment[]> {
+  const job = await getJobById(jobId).catch(() => null);
+  const settled = (p: StoredPayment) =>
+    (p.errorNote ?? "").startsWith(RESOLVED_NOTE_PREFIX);
+
+  const blocking = (rows: StoredPayment[]) =>
+    rows.filter((p) => {
+      if (p.jobId !== jobId || p.addon !== addon) return false;
+      if (settled(p)) return false;
+      if (
+        p.status === "failed" &&
+        (p.errorNote ?? "").startsWith(UNRESOLVED_NOTE_PREFIX)
+      ) {
+        return true;
+      }
+      return p.status === "paid" && !paymentIsGranted(p, job ?? undefined);
+    });
+
   const supabase = getSupabase();
 
   if (supabase) {
@@ -1000,21 +1073,14 @@ export async function unresolvedPaymentsFor(
       .select("*")
       .eq("job_id", jobId)
       .eq("addon", addon)
-      .eq("status", "failed")
-      .like("error_note", `${UNRESOLVED_NOTE_PREFIX}%`);
+      .in("status", ["failed", "paid"]);
     if (error) {
       throw new Error(`Failed to check pending payments: ${error.message}`);
     }
-    return (data ?? []).map(rowToPayment);
+    return blocking((data ?? []).map(rowToPayment));
   }
 
-  return (await readFile()).payments.filter(
-    (p) =>
-      p.jobId === jobId &&
-      p.addon === addon &&
-      p.status === "failed" &&
-      (p.errorNote ?? "").startsWith(UNRESOLVED_NOTE_PREFIX),
-  );
+  return blocking((await readFile()).payments);
 }
 
 // Clears the "we do not know what happened" marker on a payment, after a human
@@ -1039,7 +1105,7 @@ export async function resolvePayment(
   // success while changing nothing.
   const existing = await getPaymentByOrderId(orderId);
   if (!existing) throw new Error(`No payment for order ${orderId}.`);
-  const note = `Resolved: ${resolution} | was: ${existing.errorNote ?? "(no note)"}`;
+  const note = `${RESOLVED_NOTE_PREFIX} ${resolution} | was: ${existing.errorNote ?? "(no note)"}`;
 
   if (supabase) {
     const { error } = await supabase
