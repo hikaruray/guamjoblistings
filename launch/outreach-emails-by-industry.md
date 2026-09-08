@@ -1,5 +1,15 @@
 # 雇用主向けアウトリーチ英文メール — 業種別テンプレート
 
+> 🔴 **2026-09-08 訂正あり。** このファイルの「applications come straight to your inbox」
+> という記述は**事実ではなくなっていた**（4箇所）。2026-09-04 に応募者の個人情報をメールから
+> 外し、ログインの内側に移したため（`src/app/api/apply/route.ts:82` "Deliberately no
+> applicant details."）。**仕様を変えたのに、それを説明する文章を変えていなかった。**
+> 送っていれば、企業は来ないメールを待つことになっていた。全4箇所を実装に合わせて修正済み。
+>
+> 📌 **営業の方針・順番・言ってはいけないことは `employer-outreach-kit.md` が正。**
+> 本ファイルは文面のバリエーション集として使う。
+
+
 お付き合いのある3業種（ホテルリゾート / 飲食 / ジェットスキー・ウォータースポーツ）向けに、
 業種ごとに文面をカスタムした英文メールです。`[ ]` の部分を差し替えて使ってください。
 
@@ -23,9 +33,10 @@ that keep our island's guests happy.
 
 Hiring dependable front desk, housekeeping, F&B and guest-services staff is one of
 the hardest parts of running a property here, so I'd love to feature
-**[Hotel/Resort Name]** as one of our first partners. Posting is **completely free**
-right now, and applications come **straight to your HR inbox** — you also get a copy
-so nothing slips through.
+**[Hotel/Resort Name]** as one of our first partners. Posting is **completely free**,
+and you're emailed the moment someone applies. Your HR team reads the application —
+name, contact details and all — by signing in to the dashboard, because we keep
+applicants' personal information on the site rather than in email.
 
 If you have any openings, just reply with the details below and I'll have them live
 within a day.
@@ -57,9 +68,9 @@ made for Guam businesses — and restaurants and bars are exactly the kind of em
 we built it for.
 
 Good kitchen and floor staff are hard to find on the island, so I'd love to help
-**[Restaurant Name]** get in front of local job seekers. Posting is **completely free**
-right now. Candidates can apply in one click, and every application goes **directly to
-your inbox** (with a copy to you for backup).
+**[Restaurant Name]** get in front of local job seekers. Posting is **completely free**.
+Candidates apply in one click, you get an email straight away, and you read the
+application by signing in — we keep applicants' personal details off email on purpose.
 
 If you're hiring line cooks, servers, bartenders, dishwashers — anything — just reply
 with the details below and I'll get it posted within a day.
@@ -92,7 +103,8 @@ that's such a big part of what makes the island special.
 
 Seasonal crew, tour guides and boat staff can be tough to recruit, so I'd love to
 feature **[Company Name]** as one of our first tour operators. Posting is **completely
-free** right now, and applications come **straight to your inbox** (plus a copy to you).
+free**, you're emailed as soon as someone applies, and you read the application by
+signing in — applicants' personal details stay on the site, not in email.
 Bilingual applicants (English / Japanese / Korean) tend to browse the board too.
 
 If you're looking for guides, deckhands or seasonal crew, just reply with the details

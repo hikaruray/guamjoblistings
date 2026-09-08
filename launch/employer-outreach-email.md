@@ -1,5 +1,15 @@
 # 事業者への掲載お知らせ — 英文テンプレート
 
+> 🔴 **2026-09-08 訂正あり。** このファイルの「applications come straight to your inbox」
+> という記述は**事実ではなくなっていた**（4箇所）。2026-09-04 に応募者の個人情報をメールから
+> 外し、ログインの内側に移したため（`src/app/api/apply/route.ts:82` "Deliberately no
+> applicant details."）。**仕様を変えたのに、それを説明する文章を変えていなかった。**
+> 送っていれば、企業は来ないメールを待つことになっていた。全4箇所を実装に合わせて修正済み。
+>
+> 📌 **営業の方針・順番・言ってはいけないことは `employer-outreach-kit.md` が正。**
+> 本ファイルは文面のバリエーション集として使う。
+
+
 公開後、お付き合いのある3〜5社に送るためのメール案です。`[ ]` の部分を差し替えて使ってください。
 
 ---
@@ -15,7 +25,10 @@ job board built specifically for businesses here on Guam — hospitality,
 restaurants, water sports, retail and more.
 
 I'd love to feature [Company Name] as one of our first employers. Posting a job
-is **completely free** right now, and applications come **straight to your inbox**.
+is **completely free**, and you're notified by email the moment someone applies.
+You read the application — including the applicant's contact details — by signing
+in to your dashboard. We deliberately keep applicants' personal information on
+the site rather than in email.
 
 If you have any openings, just reply with:
 - Job title
@@ -42,10 +55,11 @@ Good news — your opening for **[Job Title]** is now live on Guam Job Listings:
 
 👉 [link to the job page]
 
-Applicants can apply in one click, and every application will be sent directly
-to [their email]. You'll also get a copy so nothing slips through.
+Applicants apply in one click. You get an email the moment one arrives, and you
+read it — with their contact details — by signing in to your dashboard. We keep
+applicants' personal information off email on purpose.
 
-It's free while we grow. If you'd like to add more positions or feature this one
+Posting is free. If you'd like to add more positions or feature this one
 higher in search results later on, just let me know.
 
 Thanks for being one of our first partners on the island!
