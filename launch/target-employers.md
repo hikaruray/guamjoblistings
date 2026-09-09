@@ -48,7 +48,8 @@
 |---|---|---|---|
 | B1 | **Alupang Beach Club (ABC Guam)** | 【実在】 | ドルフィンウォッチング・パラセーリング・ジェットスキー。Hagatna湾 |
 | B2 | **Bikini Island Club** | 【実在】 | Merizo。ジェットスキー・ボートダイビング・バナナボート |
-| B3 | （Mokaruの取引先・同業） | — | 🔴 **ここはオーナーしか知らない。リストに書けない部分**。ツアー業・送迎・ガイドの知り合いを3社挙げてください |
+| B3 | **Joe's Jet Ski & Marine Sports** | 【実在】⭐ **オーナーの知り合い** | 132 Lagoon Drive, Tamuning。家族経営・グアム唯一の outside the reef ツアー。**USCGライセンス船長＋WSC認定スタッフ＝ライセンス職の採用**。→ 個別文面は `first-three-employers.md` |
+| B4 | **Gently Blue（ジェントリーブルー）** | 【実在】⭐ **オーナーの知り合い** | PADIダイブセンター・地元資本25年以上。Tumon Bay Capital Hotel内。**日本語で発信**＝日本語で当てる。PADIインストラクター／日英バイリンガル。→ `first-three-employers.md` |
 
 ---
 
@@ -56,9 +57,11 @@
 
 Tier A で手応えを得てから広げる先。Tumon/Tamuning 中心。
 
+⭐ **Holiday Resort & Spa Guam＝オーナーの知り合い。Tier C ではなく最優先**（252室・レストラン2軒・スパ。個別文面は `first-three-employers.md`）
+
 Dusit Thani Guam Resort / Dusit Beach Resort Guam / Hilton Guam Resort & Spa /
 Pacific Islands Club (PIC) Guam / The Tsubaki Tower / Guam Reef Hotel /
-Oceanview Hotel & Residences / Holiday Resort & Spa Guam / Grand Plaza Hotel /
+Oceanview Hotel & Residences / Grand Plaza Hotel /
 Garden Villa Hotel / The Bayview Hotel Guam / Royal Orchid Guam Hotel /
 Pia Resort Hotel / Hotel Tano / Tumon Bay Capital Hotel / Pacific Bay Hotel /
 Leopalace Resort Guam / Guam Plaza Resort（※A1 City Hill 運営）
