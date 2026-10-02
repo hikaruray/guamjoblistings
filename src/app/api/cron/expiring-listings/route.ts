@@ -102,12 +102,15 @@ export async function GET(request: Request) {
     ].join("\n");
 
     try {
-      await resend.emails.send({
+      // Resend reports most failures in the return value rather than by
+      // throwing; without this check a failed send was still marked as sent.
+      const { error } = await resend.emails.send({
         from: FROM_EMAIL,
         to: job.email,
         subject: `"${job.title}" comes down in ${days} day${days === 1 ? "" : "s"} — renew free`,
         text,
       });
+      if (error) throw new Error(error.message);
       // Only after the send succeeds. Marking first would silently swallow the
       // one warning this employer was going to get.
       await markExpiryNoticeSent(job.id);

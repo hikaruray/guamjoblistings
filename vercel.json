@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/expiring-listings",
       "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron/pending-review?slot=morning",
+      "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron/pending-review?slot=evening",
+      "schedule": "0 8 * * *"
     }
   ]
 }
