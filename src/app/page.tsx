@@ -4,6 +4,11 @@ import { getPublicJobs } from "@/lib/public-jobs";
 import JobCard from "@/components/JobCard";
 import { CategoryIcon, PalmLogo, SearchIcon, DocumentIcon, HandshakeIcon } from "@/components/icons";
 
+// Read the database on every request. Without this the page was prerendered at
+// build time and kept showing "0 jobs" after the first real listings were
+// approved on 2026-10-02 — approval never triggers a rebuild.
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   // Real, approved postings only. The placeholder listings this page used to
   // count and feature were deleted on 2026-08-29.
