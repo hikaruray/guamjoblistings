@@ -13,7 +13,13 @@ export default async function Home() {
   // Real, approved postings only. The placeholder listings this page used to
   // count and feature were deleted on 2026-08-29.
   const jobs = await getPublicJobs();
-  const featured = jobs.filter((j) => j.featured).slice(0, 6);
+  // Two rows: paid Featured on top, Latest always underneath. This used to be
+  // one row that switched to Featured-only as soon as a single listing was
+  // featured, so one paying employer pushed every free listing off the home
+  // page. Latest skips whatever Featured already shows, so nothing appears twice.
+  const featured = jobs.filter((j) => j.featured).slice(0, 3);
+  const shown = new Set(featured.map((j) => j.id));
+  const latest = jobs.filter((j) => !shown.has(j.id)).slice(0, 6);
 
   return (
     <>
@@ -79,24 +85,36 @@ export default async function Home() {
       {/* Featured jobs. An honest empty state beats a grid of nothing — and
           beats the placeholder listings that used to fill it. */}
       {jobs.length > 0 ? (
-        <section className="mx-auto max-w-6xl px-4 pb-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-slate-900">
-              {featured.length > 0 ? "Featured Jobs" : "Latest Jobs"}
-            </h2>
-            <Link
-              href="/jobs"
-              className="text-sm font-medium text-cyan-600 hover:text-cyan-700"
-            >
-              View all jobs →
-            </Link>
-          </div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {(featured.length > 0 ? featured : jobs.slice(0, 6)).map((job) => (
-              <JobCard key={job.id} job={job} />
-            ))}
-          </div>
-        </section>
+        <>
+          {featured.length > 0 && (
+            <section className="mx-auto max-w-6xl px-4 pb-4">
+              <h2 className="text-xl font-bold text-slate-900">Featured Jobs</h2>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {featured.map((job) => (
+                  <JobCard key={job.id} job={job} />
+                ))}
+              </div>
+            </section>
+          )}
+          {latest.length > 0 && (
+            <section className="mx-auto max-w-6xl px-4 pb-4 pt-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-slate-900">Latest Jobs</h2>
+                <Link
+                  href="/jobs"
+                  className="text-sm font-medium text-cyan-600 hover:text-cyan-700"
+                >
+                  View all jobs →
+                </Link>
+              </div>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {latest.map((job) => (
+                  <JobCard key={job.id} job={job} />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
       ) : (
         <section className="mx-auto max-w-3xl px-4 pb-4">
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
