@@ -1,5 +1,6 @@
 import { addonFor, centsToPaypalValue } from "@/lib/addons";
-import { createCaptureOrder, isPaypalConfigured } from "@/lib/paypal";
+import { createCaptureOrder } from "@/lib/paypal";
+import { paymentsOpen } from "@/lib/payments-switch";
 import {
   createPayment,
   getJobById,
@@ -30,7 +31,9 @@ export const maxDuration = 30;
 //     'created'). It never touches the job's add-on columns. The add-on is
 //     granted only by capture-order, and only on a COMPLETED capture.
 export async function POST(request: Request) {
-  if (!isPaypalConfigured()) {
+  // The same question the buy button asks (keys + owner's switch), so the API
+  // cannot sell while the page shows nothing to buy.
+  if (!(await paymentsOpen())) {
     return Response.json(
       { error: "Online payment is not available right now." },
       { status: 503 },

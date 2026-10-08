@@ -1,4 +1,4 @@
-import { PinIcon, StarIcon } from "@/components/icons";
+import { PinIcon, StarIcon, FlameIcon } from "@/components/icons";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublicJob } from "@/lib/public-jobs";
@@ -74,10 +74,22 @@ export default async function JobDetailPage({
             <h1 className="text-2xl font-bold text-slate-900">{job.title}</h1>
             <p className="mt-1 text-slate-600">{job.company}</p>
           </div>
-          {job.featured && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
-              <StarIcon className="h-3.5 w-3.5" /> Featured
-            </span>
+          {/* Same badges, same order as JobCard. Urgent was missing here, so
+              the $10 add-on showed in the list and vanished on the page a
+              jobseeker actually reads before applying. */}
+          {(job.urgent || job.featured) && (
+            <div className="flex shrink-0 flex-wrap gap-1.5">
+              {job.urgent && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-3 py-1 text-xs font-medium text-rose-700">
+                  <FlameIcon className="h-3.5 w-3.5" /> Urgent
+                </span>
+              )}
+              {job.featured && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
+                  <StarIcon className="h-3.5 w-3.5" /> Featured
+                </span>
+              )}
+            </div>
           )}
         </div>
 

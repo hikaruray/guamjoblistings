@@ -143,6 +143,7 @@ interface DB {
   applications: StoredApplication[];
   pendingJobs: PendingJob[];
   payments: StoredPayment[];
+  settings: Record<string, string>;
 }
 
 const DATA_DIR = path.join(process.cwd(), ".data");
@@ -157,9 +158,10 @@ async function readFile(): Promise<DB> {
       applications: db.applications ?? [],
       pendingJobs: db.pendingJobs ?? [],
       payments: db.payments ?? [],
+      settings: db.settings ?? {},
     };
   } catch {
-    return { applications: [], pendingJobs: [], payments: [] };
+    return { applications: [], pendingJobs: [], payments: [], settings: {} };
   }
 }
 
@@ -504,13 +506,9 @@ function extendDeadline(current: string | null | undefined, days: number): strin
   return new Date(base + days * 86_400_000).toISOString();
 }
 
-// The column each add-on extends. expires_at is no longer one of them: it is
-// set on approval and renewed free by the employer (see LISTING_DAYS).
-const ADDON_COLUMN: Record<string, "featured_until" | "urgent_until"> = {
-  featured: "featured_until",
-  urgent: "urgent_until",
-};
-
+// The field each add-on extends (local JSON mode; Supabase does the same inside
+// settle_payment). expires_at is no longer one of them: it is set on approval
+// and renewed free by the employer (see LISTING_DAYS).
 const ADDON_FIELD: Record<string, "featuredUntil" | "urgentUntil"> = {
   featured: "featuredUntil",
   urgent: "urgentUntil",
@@ -594,42 +592,44 @@ export interface GrantResult {
 // row was already 'paid' (a retry / double-click), so the caller can respond
 // success WITHOUT extending the add-on a second time.
 //
-// The status guard is a compare-and-set: the UPDATE only matches rows still in
-// 'created', so two concurrent captures cannot both grant.
+// Both happen inside one database transaction (settle_payment, see
+// launch/supabase-payments-v2-migration.sql). They used to be two requests —
+// status first, grant second — so a failure in between left a paid row with no
+// add-on, and the grant read the end date and wrote it back, losing time when
+// two purchases landed together. The status guard is still a compare-and-set:
+// only a row in a settleable state wins, so concurrent captures cannot both grant.
+//
+// allowUnresolved: also settle a row recorded as "Outcome unknown". Only for
+// callers that have just asked PayPal and seen the capture COMPLETED for the
+// expected amount — the reconciler, and the Admin "check PayPal" button.
 export async function markPaymentPaidAndGrant(
   orderId: string,
-  info: { captureId: string; payerEmail?: string | null },
+  info: {
+    captureId: string;
+    payerEmail?: string | null;
+    allowUnresolved?: boolean;
+    note?: string;
+  },
 ): Promise<GrantResult> {
   const supabase = getSupabase();
 
   if (supabase) {
-    const { data, error } = await supabase
-      .from("payments")
-      .update({
-        status: "paid",
-        paypal_capture_id: info.captureId,
-        payer_email: info.payerEmail ?? null,
-        paid_at: new Date().toISOString(),
-      })
-      .eq("paypal_order_id", orderId)
-      .eq("status", "created") // ← compare-and-set: only a 'created' row wins
-      .select();
-    if (error) throw new Error(`Failed to mark payment paid: ${error.message}`);
+    const { data, error } = await supabase.rpc("settle_payment", {
+      p_order_id: orderId,
+      p_capture_id: info.captureId,
+      p_payer_email: info.payerEmail ?? null,
+      p_allow_unresolved: info.allowUnresolved ?? false,
+      p_note: info.note ?? null,
+    });
+    if (error) throw new Error(`Failed to settle payment: ${error.message}`);
 
-    const rows = (data ?? []) as Record<string, unknown>[];
-    if (rows.length === 0) {
-      // Someone else already promoted it (or it doesn't exist). Do NOT grant.
-      const existing = await getPaymentByOrderId(orderId);
-      return {
-        granted: false,
-        alreadyPaid: existing?.status === "paid",
-        payment: existing,
-      };
-    }
-
-    const payment = rowToPayment(rows[0]);
-    await grantAddon(payment.jobId, payment.addon, payment.days);
-    return { granted: true, alreadyPaid: false, payment };
+    const granted = Boolean((data as { granted: boolean }[] | null)?.[0]?.granted);
+    const existing = await getPaymentByOrderId(orderId);
+    return {
+      granted,
+      alreadyPaid: !granted && existing?.status === "paid",
+      payment: existing,
+    };
   }
 
   const db = await readFile();
@@ -638,10 +638,17 @@ export async function markPaymentPaidAndGrant(
   if (payment.status === "paid") {
     return { granted: false, alreadyPaid: true, payment };
   }
+  const settleable =
+    payment.status === "created" ||
+    (info.allowUnresolved &&
+      payment.status === "failed" &&
+      (payment.errorNote ?? "").startsWith(UNRESOLVED_NOTE_PREFIX));
+  if (!settleable) return { granted: false, alreadyPaid: false, payment };
   payment.status = "paid";
   payment.paypalCaptureId = info.captureId;
   payment.payerEmail = info.payerEmail ?? null;
   payment.paidAt = new Date().toISOString();
+  if (info.note) payment.errorNote = info.note;
 
   const job = db.pendingJobs.find((j) => j.id === payment.jobId);
   if (job) {
@@ -676,37 +683,6 @@ export async function markPaymentFailed(
     payment.errorNote = note.slice(0, 500);
   }
   await writeFile(db);
-}
-
-// Extend the add-on deadline on a job. Called ONLY from a confirmed payment.
-async function grantAddon(
-  jobId: string,
-  addon: string,
-  days: number,
-): Promise<void> {
-  const column = ADDON_COLUMN[addon];
-  if (!column) throw new Error(`Unknown add-on: ${addon}`);
-
-  const supabase = getSupabase();
-  if (!supabase) return; // local mode handled inline by the caller
-
-  const { data, error } = await supabase
-    .from("jobs")
-    .select(column)
-    .eq("id", jobId)
-    .maybeSingle();
-  if (error) throw new Error(`Failed to read job for add-on: ${error.message}`);
-
-  const current = (data as Record<string, string | null> | null)?.[column] ?? null;
-  const next = extendDeadline(current, days);
-
-  const { error: updateError } = await supabase
-    .from("jobs")
-    .update({ [column]: next })
-    .eq("id", jobId);
-  if (updateError) {
-    throw new Error(`Failed to grant add-on: ${updateError.message}`);
-  }
 }
 
 // Every payment, newest first (Admin ledger).
@@ -1105,7 +1081,10 @@ export async function resolvePayment(
   // success while changing nothing.
   const existing = await getPaymentByOrderId(orderId);
   if (!existing) throw new Error(`No payment for order ${orderId}.`);
-  const note = `${RESOLVED_NOTE_PREFIX} ${resolution} | was: ${existing.errorNote ?? "(no note)"}`;
+  // A resolution containing the marker itself would make reopenPayment cut in
+  // the wrong place, so it is flattened out of the human's text.
+  const said = resolution.split(WAS_MARKER).join(" / ");
+  const note = `${RESOLVED_NOTE_PREFIX} ${said}${WAS_MARKER}${existing.errorNote ?? "(no note)"}`;
 
   if (supabase) {
     const { error } = await supabase
@@ -1120,5 +1099,99 @@ export async function resolvePayment(
   const p = db.payments.find((x) => x.paypalOrderId === orderId);
   if (!p) throw new Error(`No payment for order ${orderId}.`);
   p.errorNote = note;
+  await writeFile(db);
+}
+
+// Puts a resolved payment back the way it was before a human resolved it.
+//
+// Resolving lifts the repurchase block and takes the row out of the Admin
+// alerts, and until now it was one-way: a slip of the mouse removed a payment
+// whose money may have moved from every place that would show it, with no way
+// back short of editing the database. resolvePayment keeps the original note
+// after " | was: ", so restoring it is exact.
+const WAS_MARKER = " | was: ";
+
+export async function reopenPayment(orderId: string): Promise<void> {
+  const existing = await getPaymentByOrderId(orderId);
+  if (!existing) throw new Error(`No payment for order ${orderId}.`);
+  const note = existing.errorNote ?? "";
+  const at = note.indexOf(WAS_MARKER);
+  if (!note.startsWith(RESOLVED_NOTE_PREFIX) || at < 0) {
+    throw new Error(`Order ${orderId} has no resolution to undo.`);
+  }
+  const original = note.slice(at + WAS_MARKER.length);
+  const restored = original === "(no note)" ? null : original;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    const { error } = await supabase
+      .from("payments")
+      .update({ error_note: restored })
+      .eq("paypal_order_id", orderId);
+    if (error) throw new Error(`Failed to reopen payment: ${error.message}`);
+    return;
+  }
+
+  const db = await readFile();
+  const p = db.payments.find((x) => x.paypalOrderId === orderId);
+  if (!p) throw new Error(`No payment for order ${orderId}.`);
+  p.errorNote = restored;
+  await writeFile(db);
+}
+
+// Payments whose real outcome only PayPal can tell us: checkouts never seen
+// through to the end ('created'), and captures recorded as "Outcome unknown"
+// that nobody has resolved yet. The reconciler asks PayPal about each one.
+export async function paymentsToReconcile(): Promise<StoredPayment[]> {
+  const needsCheck = (p: StoredPayment) =>
+    p.status === "created" ||
+    (p.status === "failed" &&
+      (p.errorNote ?? "").startsWith(UNRESOLVED_NOTE_PREFIX));
+
+  const supabase = getSupabase();
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("payments")
+      .select("*")
+      .in("status", ["created", "failed"])
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(`Failed to load payments to reconcile: ${error.message}`);
+    return (data ?? []).map(rowToPayment).filter(needsCheck);
+  }
+
+  return (await readFile()).payments.filter(needsCheck);
+}
+
+// ---------------------------------------------------------------------------
+// Site settings (site_settings table — see launch/supabase-payments-v2-migration.sql)
+// ---------------------------------------------------------------------------
+
+// Throws when the store cannot answer, so a caller deciding whether to take
+// money can fail closed rather than guess.
+export async function getSetting(key: string): Promise<string | null> {
+  const supabase = getSupabase();
+  if (supabase) {
+    const { data, error } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", key)
+      .maybeSingle();
+    if (error) throw new Error(`Failed to read setting ${key}: ${error.message}`);
+    return (data as { value: string } | null)?.value ?? null;
+  }
+  return (await readFile()).settings[key] ?? null;
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  const supabase = getSupabase();
+  if (supabase) {
+    const { error } = await supabase
+      .from("site_settings")
+      .upsert({ key, value, updated_at: new Date().toISOString() });
+    if (error) throw new Error(`Failed to save setting ${key}: ${error.message}`);
+    return;
+  }
+  const db = await readFile();
+  db.settings[key] = value;
   await writeFile(db);
 }

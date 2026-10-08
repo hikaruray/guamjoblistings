@@ -11,6 +11,14 @@
     {
       "path": "/api/cron/pending-review?slot=evening",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-payments?slot=morning",
+      "schedule": "30 20 * * *"
+    },
+    {
+      "path": "/api/cron/reconcile-payments?slot=evening",
+      "schedule": "30 8 * * *"
     }
   ]
 }

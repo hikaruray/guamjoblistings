@@ -10,7 +10,10 @@ import {
   type EmployerProfile,
 } from "@/lib/store";
 import JobActions from "./JobActions";
-import ResolvePayment from "./ResolvePayment";
+import ResolvePayment, { ReopenPayment } from "./ResolvePayment";
+import SalesSwitch from "./SalesSwitch";
+import { paymentsState } from "@/lib/payments-switch";
+import { isLiveMode } from "@/lib/paypal";
 
 // Always read the latest data (no caching) so new submissions show immediately.
 export const dynamic = "force-dynamic";
@@ -28,6 +31,7 @@ const STATUS_STYLE: Record<string, string> = {
 };
 
 export default async function AdminPage() {
+  const sales = await paymentsState();
   const [applications, pendingJobs, payments] = await Promise.all([
     listApplications(),
     listPendingJobs(),
@@ -206,9 +210,12 @@ export default async function AdminPage() {
           </p>
           <p className="mt-1">
             We lost contact with PayPal mid-capture, so the money may or may not
-            have moved. Open each order in PayPal: if it was captured, apply the
-            add-on by hand or refund it; if it was not, nothing to do. The buyer
-            has been told not to pay again.
+            have moved. Press <strong>Check PayPal now</strong> on each row: if
+            PayPal confirms the capture, the add-on is switched on and counted
+            as revenue; if no money moved, the row is closed. The twice-daily
+            payment check does the same on its own. Only what it cannot decide
+            (a wrong amount, a refund) stays here for you. The buyer has been
+            told not to pay again.
           </p>
           <p className="mt-1">
             Until you press <strong>I checked PayPal</strong> on a row, that
@@ -503,6 +510,12 @@ export default async function AdminPage() {
         {(abandoned > 0 || failed > 0) &&
           ` ${abandoned} not completed, ${failed} failed.`}
       </p>
+      <SalesSwitch
+        keysConfigured={sales.keysConfigured}
+        switchedOn={sales.switchedOn}
+        liveMode={isLiveMode()}
+        switchError={sales.switchError}
+      />
       <div className="mt-3 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Stat label="Total revenue" value={usd(revenueCents)} money />
         <Stat label="Revenue (30d)" value={usd(revenue30Cents)} money />
@@ -582,6 +595,9 @@ export default async function AdminPage() {
                           {p.errorNote}
                         </span>
                       )}
+                      {p.status !== "paid" && isResolved(p) && (
+                        <ReopenPayment orderId={p.paypalOrderId} />
+                      )}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-400">
                       {p.paypalCaptureId ?? p.paypalOrderId}
@@ -640,8 +656,9 @@ export default async function AdminPage() {
 
       <p className="mt-4 text-xs text-slate-400">
         Live data from the production database. This page is protected by owner
-        login. Paid add-ons are live only when PayPal credentials are set in the
-        environment; until then the Promote buttons stay hidden and revenue is $0.
+        login. Paid add-ons are on sale only when PayPal credentials are set in
+        the environment AND the switch under Payments is on; otherwise the
+        Promote buttons stay hidden and no checkout can start.
       </p>
     </div>
   );

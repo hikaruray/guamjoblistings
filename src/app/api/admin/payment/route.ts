@@ -10,14 +10,26 @@
 // contacted had no button either; the only way out was editing the database by
 // hand, which was written down nowhere. A block with no release is a trap.
 //
-// This deliberately does NOT grant the add-on and does NOT change the payment's
-// status, so revenue figures cannot be moved from here. It only records what a
-// human found in PayPal and lifts the block.
+// Three actions:
+//   check   — ask PayPal now and settle what it can answer (lib/reconcile.ts).
+//             The only path here that can grant, and only on a COMPLETED
+//             capture for the recorded amount — so a payment PayPal confirms is
+//             counted as revenue, rather than being "applied by hand" while its
+//             row stayed failed and the money never appeared in the totals.
+//   resolve — record what a human found in PayPal and lift the block. Does not
+//             grant and does not change the status.
+//   reopen  — undo a resolve made by mistake.
 
-import { resolvePayment } from "@/lib/store";
+import {
+  getPaymentByOrderId,
+  reopenPayment,
+  resolvePayment,
+  RESOLVED_NOTE_PREFIX,
+} from "@/lib/store";
+import { reconcilePayment } from "@/lib/reconcile";
 
 export async function POST(request: Request) {
-  let body: { orderId?: string; resolution?: string };
+  let body: { orderId?: string; resolution?: string; action?: string };
   try {
     body = await request.json();
   } catch {
@@ -25,17 +37,41 @@ export async function POST(request: Request) {
   }
 
   const { orderId, resolution } = body;
-  if (!orderId || !resolution?.trim()) {
-    return Response.json(
-      { error: "Say what you found in PayPal — it is the only record of it." },
-      { status: 400 },
-    );
+  const action = body.action ?? "resolve";
+  if (!orderId) {
+    return Response.json({ error: "Missing order." }, { status: 400 });
   }
 
   try {
+    if (action === "check") {
+      const payment = await getPaymentByOrderId(orderId);
+      if (!payment) return Response.json({ error: "Unknown order." }, { status: 404 });
+      const result = await reconcilePayment(payment, { force: true });
+      return Response.json({ ok: true, result });
+    }
+
+    if (action === "reopen") {
+      const payment = await getPaymentByOrderId(orderId);
+      if (!payment) return Response.json({ error: "Unknown order." }, { status: 404 });
+      if (!(payment.errorNote ?? "").startsWith(RESOLVED_NOTE_PREFIX)) {
+        return Response.json({ error: "This payment has no resolution to undo." }, { status: 409 });
+      }
+      await reopenPayment(orderId);
+      return Response.json({ ok: true });
+    }
+
+    if (action !== "resolve") {
+      return Response.json({ error: "Unknown action." }, { status: 400 });
+    }
+    if (!resolution?.trim()) {
+      return Response.json(
+        { error: "Say what you found in PayPal — it is the only record of it." },
+        { status: 400 },
+      );
+    }
     await resolvePayment(orderId, resolution.trim());
   } catch (err) {
-    console.error("Failed to resolve payment:", err);
+    console.error(`Admin payment action "${action}" failed:`, err);
     return Response.json(
       { error: "Could not update the payment. Please try again." },
       { status: 503 },

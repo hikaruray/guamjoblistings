@@ -208,7 +208,7 @@ export interface CaptureResult {
   alreadyDone: boolean;
 }
 
-function readCapture(data: {
+export function readCapture(data: {
   status?: string;
   payer?: { email_address?: string };
   purchase_units?: {

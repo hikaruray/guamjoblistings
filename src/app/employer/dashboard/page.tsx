@@ -7,8 +7,7 @@ import {
   getEmployerProfile,
 } from "@/lib/store";
 import { addonViews } from "@/lib/addons";
-import { isPaypalConfigured } from "@/lib/paypal";
-import { PAYPAL_ENABLED } from "@/lib/config";
+import { paymentsOpen } from "@/lib/payments-switch";
 import LogoutButton from "@/components/LogoutButton";
 import DashboardJobActions from "./DashboardJobActions";
 import PromoteJob from "./PromoteJob";
@@ -78,9 +77,6 @@ export default async function EmployerDashboardPage({
   const counts = await applicationCountsForJobs(jobs.map((j) => `p_${j.id}`));
   const totalApplicants = Object.values(counts).reduce((a, b) => a + b, 0);
 
-  // Paid add-ons appear only when PayPal is fully configured (server secret AND
-  // public client id). Until the owner sets those, the site stays exactly as it
-  // is today: Phase 0, every listing free, no payment UI anywhere.
   // Their registration details, so they can see and correct them. A failure
   // here is not worth taking the whole dashboard down for.
   const profile = await getEmployerProfile(user.id).catch((err) => {
@@ -88,7 +84,10 @@ export default async function EmployerDashboardPage({
     return null;
   });
 
-  const addonsEnabled = isPaypalConfigured() && PAYPAL_ENABLED;
+  // Paid add-ons appear only while the site is selling: PayPal fully configured
+  // AND the owner has switched sales on in /admin (see lib/payments-switch.ts).
+  // Otherwise the dashboard stays Phase 0: every listing free, no payment UI.
+  const addonsEnabled = await paymentsOpen();
   // Prices are resolved on the server and passed down for DISPLAY only.
   const addons = addonsEnabled ? addonViews() : [];
 
