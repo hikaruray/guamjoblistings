@@ -105,6 +105,58 @@ function assertPublicEnvForProduction() {
 
 assertPublicEnvForProduction();
 
+// ── PayPal client id (2026-10-09) ─────────────────────────────────────────
+// Optional — the site runs without PayPal — so only checked once set. The
+// public id is baked into the checkout page at build time, just like the
+// Supabase values above, and the checkout only loads behind an employer
+// sign-in, so a broken value would surface as a dead Pay button on the first
+// real sale and nowhere before it.
+//
+// It must also be the SAME id as the server's PAYPAL_CLIENT_ID. Switching from
+// sandbox to live means replacing both; replacing one gives a browser that
+// opens orders in one PayPal environment while the server captures in the
+// other, and every purchase fails at the last step.
+function assertPaypalEnvForProduction() {
+  if (process.env.VERCEL_ENV !== "production") return;
+  const pub = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID?.trim() ?? "";
+  const server = process.env.PAYPAL_CLIENT_ID?.trim() ?? "";
+  if (!pub && !server) return;
+
+  const problems: string[] = [];
+  if (!pub) {
+    problems.push("PAYPAL_CLIENT_ID is set but NEXT_PUBLIC_PAYPAL_CLIENT_ID is not — the Pay button can never appear");
+  } else {
+    const badChar = findNonLatin1(pub);
+    if (badChar) {
+      problems.push(
+        `NEXT_PUBLIC_PAYPAL_CLIENT_ID contains ${badChar} — the bullet Vercel shows for a hidden value. Do not mark this variable Sensitive.`,
+      );
+    } else if (pub.length < 40) {
+      problems.push("NEXT_PUBLIC_PAYPAL_CLIENT_ID looks too short to be a real PayPal client id");
+    }
+    if (server && server !== pub) {
+      problems.push(
+        "NEXT_PUBLIC_PAYPAL_CLIENT_ID and PAYPAL_CLIENT_ID differ — they must be the same id (both sandbox or both live)",
+      );
+    }
+  }
+  if (problems.length === 0) return;
+
+  throw new Error(
+    [
+      "",
+      "Refusing to build for production: the PayPal configuration is broken.",
+      "",
+      ...problems.map((p) => `  • ${p}`),
+      "",
+      "Fix the values in Vercel → Settings → Environment Variables, then redeploy.",
+      "",
+    ].join("\n"),
+  );
+}
+
+assertPaypalEnvForProduction();
+
 // NEXT_PUBLIC_SITE_URL only degrades to http://localhost:3000, which breaks
 // confirmation-email links rather than the whole site — warn, do not block.
 if (process.env.VERCEL_ENV === "production" && !process.env.NEXT_PUBLIC_SITE_URL?.trim()) {
