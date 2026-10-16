@@ -34,8 +34,14 @@ export const config = {
   matcher: ["/admin/:path*", "/api/admin/:path*"],
 };
 
-// The two doors that must open without a session: the form and its handler.
-const PUBLIC_PATHS = new Set(["/admin/login", "/api/admin/login"]);
+// Doors that must open without a session: the form, its handler, and Log out —
+// pressing Log out after the session has already expired must still land on
+// the login form, not on a bare 401. Logging out reveals and changes nothing.
+const PUBLIC_PATHS = new Set([
+  "/admin/login",
+  "/api/admin/login",
+  "/api/admin/logout",
+]);
 
 export async function proxy(request: NextRequest) {
   if (adminAuthDisabled()) {
