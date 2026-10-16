@@ -7,6 +7,10 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase-browser";
 import { SITE_URL } from "@/lib/config";
+import Turnstile, {
+  captchaErrorMessage,
+  captchaRequired,
+} from "@/components/Turnstile";
 
 // Employer password reset, step 1: ask Supabase to email a recovery link.
 //
@@ -17,6 +21,8 @@ export default function ForgotPasswordForm() {
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaKey, setCaptchaKey] = useState(0);
   const configured = isSupabaseConfigured();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -32,13 +38,18 @@ export default function ForgotPasswordForm() {
       const supabase = createSupabaseBrowserClient();
       const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
         redirectTo: `${SITE_URL}/auth/callback?next=/employer/new-password`,
+        captchaToken: captchaToken ?? undefined,
       });
       if (error) throw error;
       setDone(true);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Could not send the reset link.",
+        err instanceof Error
+          ? captchaErrorMessage(err.message)
+          : "Could not send the reset link.",
       );
+      // The token was spent on this attempt; get a fresh one for the retry.
+      setCaptchaKey((k) => k + 1);
     } finally {
       setSending(false);
     }
@@ -96,6 +107,8 @@ export default function ForgotPasswordForm() {
           />
         </div>
 
+        <Turnstile key={captchaKey} onToken={setCaptchaToken} />
+
         {error && (
           <p className="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
@@ -104,7 +117,7 @@ export default function ForgotPasswordForm() {
 
         <button
           type="submit"
-          disabled={sending || !configured}
+          disabled={sending || !configured || (captchaRequired && !captchaToken)}
           className="w-full rounded-lg bg-cyan-600 px-6 py-3 font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {sending ? "Sending..." : "Send reset link"}

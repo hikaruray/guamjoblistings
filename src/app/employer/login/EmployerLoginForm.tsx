@@ -7,6 +7,10 @@ import {
   createSupabaseBrowserClient,
   isSupabaseConfigured,
 } from "@/lib/supabase-browser";
+import Turnstile, {
+  captchaErrorMessage,
+  captchaRequired,
+} from "@/components/Turnstile";
 
 // Employer sign-in via email + password. On success, redirects to the
 // dashboard (or the page they were trying to reach, e.g. /post-a-job).
@@ -19,6 +23,8 @@ export default function EmployerLoginForm() {
 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaKey, setCaptchaKey] = useState(0);
   const configured = isSupabaseConfigured();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -35,14 +41,19 @@ export default function EmployerLoginForm() {
       const { error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
+        options: { captchaToken: captchaToken ?? undefined },
       });
       if (error) throw error;
       router.push(next.startsWith("/") ? next : "/employer/dashboard");
       router.refresh();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Invalid email or password.",
+        err instanceof Error
+          ? captchaErrorMessage(err.message)
+          : "Invalid email or password.",
       );
+      // The token was spent on this attempt; get a fresh one for the retry.
+      setCaptchaKey((k) => k + 1);
       setSending(false);
     }
   }
@@ -92,6 +103,8 @@ export default function EmployerLoginForm() {
           />
         </div>
 
+        <Turnstile key={captchaKey} onToken={setCaptchaToken} />
+
         {error && (
           <p className="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
@@ -100,7 +113,7 @@ export default function EmployerLoginForm() {
 
         <button
           type="submit"
-          disabled={sending || !configured}
+          disabled={sending || !configured || (captchaRequired && !captchaToken)}
           className="w-full rounded-lg bg-cyan-600 px-6 py-3 font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {sending ? "Signing in..." : "Sign in"}

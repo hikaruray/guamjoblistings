@@ -8,6 +8,15 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase-browser";
 import { SITE_URL } from "@/lib/config";
+import Turnstile, {
+  captchaErrorMessage,
+  captchaRequired,
+} from "@/components/Turnstile";
+
+// Honeypot. Hidden from people (off-screen, no label, skipped by Tab); form
+// bots fill every input they find. A mechanical name on purpose: a field
+// called "company" invites browser autofill, which would drop a real employer.
+const HONEYPOT = "gj_field_7";
 
 // Employer sign-up: email + password (email confirmation required), plus the
 // required contact fields (name / URL / phone). After sign-up, Supabase emails
@@ -17,6 +26,8 @@ export default function RegisterForm() {
   const [done, setDone] = useState(false);
   const [profileSaved, setProfileSaved] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaKey, setCaptchaKey] = useState(0);
   const configured = isSupabaseConfigured();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -27,6 +38,15 @@ export default function RegisterForm() {
     const form = e.currentTarget;
     const data = Object.fromEntries(new FormData(form)) as Record<string, string>;
 
+    // A bot filled the hidden field: show the normal "check your inbox"
+    // screen so it learns nothing, but create no account and send no email.
+    if (data[HONEYPOT]) {
+      console.warn("[honeypot] employer sign-up dropped");
+      setDone(true);
+      setSending(false);
+      return;
+    }
+
     try {
       const supabase = createSupabaseBrowserClient();
       const { data: signUp, error: signUpError } = await supabase.auth.signUp({
@@ -34,6 +54,7 @@ export default function RegisterForm() {
         password: data.password,
         options: {
           emailRedirectTo: `${SITE_URL}/auth/callback?next=/employer/dashboard`,
+          captchaToken: captchaToken ?? undefined,
         },
       });
       if (signUpError) throw signUpError;
@@ -79,7 +100,11 @@ export default function RegisterForm() {
       setProfileSaved(profileSaved);
       setDone(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(
+        err instanceof Error ? captchaErrorMessage(err.message) : "Something went wrong.",
+      );
+      // The token was spent on this attempt; get a fresh one for the retry.
+      setCaptchaKey((k) => k + 1);
     } finally {
       setSending(false);
     }
@@ -134,6 +159,17 @@ export default function RegisterForm() {
         <Field label="Company Website / URL" name="url" type="url" placeholder="https://yourcompany.com" required />
         <Field label="Phone" name="phone" type="tel" placeholder="(671) 000-0000" required />
 
+        <input
+          type="text"
+          name={HONEYPOT}
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+          className="absolute -left-[9999px] h-px w-px opacity-0"
+        />
+
+        <Turnstile key={captchaKey} onToken={setCaptchaToken} />
+
         {error && (
           <p className="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
@@ -142,7 +178,7 @@ export default function RegisterForm() {
 
         <button
           type="submit"
-          disabled={sending || !configured}
+          disabled={sending || !configured || (captchaRequired && !captchaToken)}
           className="w-full rounded-lg bg-cyan-600 px-6 py-3 font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {sending ? "Creating account..." : "Create account"}

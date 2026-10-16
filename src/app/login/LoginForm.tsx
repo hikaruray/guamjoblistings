@@ -9,6 +9,10 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase-browser";
 import { SITE_URL } from "@/lib/config";
+import Turnstile, {
+  captchaErrorMessage,
+  captchaRequired,
+} from "@/components/Turnstile";
 
 // Applicant sign-in via magic link (passwordless). Entering an email sends a
 // one-time link; clicking it registers + logs in + verifies the email at once.
@@ -23,6 +27,8 @@ export default function LoginForm() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(initialError);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaKey, setCaptchaKey] = useState(0);
 
   const configured = isSupabaseConfigured();
 
@@ -36,12 +42,17 @@ export default function LoginForm() {
         email,
         options: {
           emailRedirectTo: `${SITE_URL}/auth/callback?next=${encodeURIComponent(next)}`,
+          captchaToken: captchaToken ?? undefined,
         },
       });
       if (error) throw error;
       setSent(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(
+        err instanceof Error ? captchaErrorMessage(err.message) : "Something went wrong.",
+      );
+      // The token was spent on this attempt; get a fresh one for the retry.
+      setCaptchaKey((k) => k + 1);
     } finally {
       setSending(false);
     }
@@ -99,6 +110,8 @@ export default function LoginForm() {
           />
         </div>
 
+        <Turnstile key={captchaKey} onToken={setCaptchaToken} />
+
         {error && (
           <p className="rounded-lg bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
@@ -107,7 +120,7 @@ export default function LoginForm() {
 
         <button
           type="submit"
-          disabled={sending || !configured}
+          disabled={sending || !configured || (captchaRequired && !captchaToken)}
           className="w-full rounded-lg bg-cyan-600 px-6 py-3 font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {sending ? "Sending link..." : "Send me a sign-in link"}

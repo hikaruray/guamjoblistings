@@ -157,6 +157,51 @@ function assertPaypalEnvForProduction() {
 
 assertPaypalEnvForProduction();
 
+// ── Turnstile site key (2026-10-17) ───────────────────────────────────────
+// Supabase Auth has CAPTCHA switched on (Attack Protection → Turnstile), so
+// sign-up, sign-in, magic link and password reset are all refused without a
+// token. The widget that produces the token only renders when this key is
+// baked in — a build without it is a site where nobody can sign in, and
+// nothing reports an error. See src/components/Turnstile.tsx.
+//
+// Cloudflare's published test keys (1x…/2x…/3x…) pass or fail every visitor
+// regardless and never match the production secret in Supabase — refuse them.
+function assertTurnstileEnvForProduction() {
+  if (process.env.VERCEL_ENV !== "production") return;
+  const key = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
+
+  let problem: string | null = null;
+  if (!key) {
+    problem = "NEXT_PUBLIC_TURNSTILE_SITE_KEY is not set";
+  } else {
+    const badChar = findNonLatin1(key);
+    if (badChar) {
+      problem = `NEXT_PUBLIC_TURNSTILE_SITE_KEY contains ${badChar} — the bullet Vercel shows for a hidden value. Do not mark this variable Sensitive.`;
+    } else if (/^[123]x0+/.test(key)) {
+      problem = "NEXT_PUBLIC_TURNSTILE_SITE_KEY is one of Cloudflare's test keys — use the site key of the guamjoblisting.com widget";
+    } else if (!key.startsWith("0x") || key.length < 20) {
+      problem = "NEXT_PUBLIC_TURNSTILE_SITE_KEY does not look like a Turnstile site key (they start with 0x)";
+    }
+  }
+  if (!problem) return;
+
+  throw new Error(
+    [
+      "",
+      "Refusing to build for production: the Turnstile (CAPTCHA) site key is broken.",
+      "",
+      `  • ${problem}`,
+      "",
+      "With CAPTCHA on in Supabase, every sign-in and sign-up would be refused.",
+      "Copy the Site Key from Cloudflare → Turnstile into",
+      "Vercel → Settings → Environment Variables (not Sensitive), then redeploy.",
+      "",
+    ].join("\n"),
+  );
+}
+
+assertTurnstileEnvForProduction();
+
 // NEXT_PUBLIC_SITE_URL only degrades to http://localhost:3000, which breaks
 // confirmation-email links rather than the whole site — warn, do not block.
 if (process.env.VERCEL_ENV === "production" && !process.env.NEXT_PUBLIC_SITE_URL?.trim()) {
