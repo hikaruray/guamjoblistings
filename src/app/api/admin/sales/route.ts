@@ -1,11 +1,15 @@
 // Turns selling paid add-ons on or off (lib/payments-switch.ts).
 //
-// Authentication is handled in proxy.ts, whose matcher covers /api/admin/*.
+// Authentication: the owner's login cookie, checked in proxy.ts and again below.
 // Takes effect on the next request: no redeploy, and the PayPal keys stay put.
 
 import { paymentsState, setPaymentsOpen } from "@/lib/payments-switch";
+import { adminUnauthorized, isAdmin } from "@/lib/admin-session";
 
 export async function POST(request: Request) {
+  // Checked here as well as in proxy.ts — see lib/admin-session.ts.
+  if (!(await isAdmin())) return adminUnauthorized();
+
   let body: { open?: unknown };
   try {
     body = await request.json();

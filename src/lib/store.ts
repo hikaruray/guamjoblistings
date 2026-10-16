@@ -873,6 +873,59 @@ export async function employerProfilesByUserId(
   );
 }
 
+// Every employer profile, for the Admin accounts screen.
+export async function listEmployerProfiles(): Promise<EmployerProfile[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
+  const out: EmployerProfile[] = [];
+  // PostgREST caps a response at 1000 rows; page through rather than silently
+  // stopping there.
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("employer_profiles")
+      .select("*")
+      .range(from, from + 999);
+    if (error) throw new Error(`Failed to load employer profiles: ${error.message}`);
+    out.push(...(data ?? []).map((r) => rowToEmployerProfile(r as Record<string, unknown>)));
+    if (!data || data.length < 1000) return out;
+  }
+}
+
+// A sign-in account as Supabase Auth knows it — the parts the Admin needs to
+// tell a real employer from an abandoned or automated sign-up.
+export interface AuthAccount {
+  id: string;
+  email: string;
+  createdAt: string;
+  emailConfirmedAt: string | null;
+  lastSignInAt: string | null;
+}
+
+export async function listAuthAccounts(): Promise<AuthAccount[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
+  const out: AuthAccount[] = [];
+  for (let page = 1; page <= 50; page++) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    });
+    if (error) throw new Error(`Failed to load accounts: ${error.message}`);
+    const users = data?.users ?? [];
+    out.push(
+      ...users.map((u) => ({
+        id: u.id,
+        email: u.email ?? "",
+        createdAt: u.created_at,
+        emailConfirmedAt: u.email_confirmed_at ?? null,
+        lastSignInAt: u.last_sign_in_at ?? null,
+      })),
+    );
+    if (users.length < 1000) break;
+  }
+  return out;
+}
+
 export async function saveEmployerProfile(
   profile: EmployerProfile,
 ): Promise<boolean> {

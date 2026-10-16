@@ -14,6 +14,10 @@ import ResolvePayment, { ReopenPayment } from "./ResolvePayment";
 import SalesSwitch from "./SalesSwitch";
 import { paymentsState } from "@/lib/payments-switch";
 import { isLiveMode } from "@/lib/paypal";
+import { isAdmin } from "@/lib/admin-session";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import AdminNav from "./AdminNav";
 
 // Always read the latest data (no caching) so new submissions show immediately.
 export const dynamic = "force-dynamic";
@@ -30,7 +34,23 @@ const STATUS_STYLE: Record<string, string> = {
   closed: "bg-slate-200 text-slate-600",
 };
 
-export default async function AdminPage() {
+// Which submissions the review table shows (?jobs=…). "all" is the default so
+// nothing that used to be on this screen disappears from it.
+const JOB_FILTERS = ["all", "pending", "live", "expired", "closed"] as const;
+type JobFilter = (typeof JOB_FILTERS)[number];
+
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ jobs?: string }>;
+}) {
+  // Checked here as well as in proxy.ts — see lib/admin-session.ts.
+  if (!(await isAdmin())) redirect("/admin/login");
+  const { jobs: jobsParam } = await searchParams;
+  const jobFilter: JobFilter = (JOB_FILTERS as readonly string[]).includes(jobsParam ?? "")
+    ? (jobsParam as JobFilter)
+    : "all";
+
   const sales = await paymentsState();
   const [applications, pendingJobs, payments] = await Promise.all([
     listApplications(),
@@ -66,6 +86,27 @@ export default async function AdminPage() {
   const liveJobs = pendingJobs.filter(isLive);
   const awaitingReview = pendingJobs.filter((j) => j.status === "pending").length;
   const closedJobs = pendingJobs.filter((j) => j.status === "closed").length;
+  const expiredJobs = pendingJobs.filter(
+    (j) => j.status === "approved" && !isLive(j),
+  ).length;
+  const rejectedOrClosed = pendingJobs.filter(
+    (j) => j.status === "closed" || j.status === "rejected",
+  ).length;
+  const JOB_FILTER_MATCH: Record<JobFilter, (j: (typeof pendingJobs)[number]) => boolean> = {
+    all: () => true,
+    pending: (j) => j.status === "pending",
+    live: isLive,
+    expired: (j) => j.status === "approved" && !isLive(j),
+    closed: (j) => j.status === "closed" || j.status === "rejected",
+  };
+  const shownJobs = pendingJobs.filter(JOB_FILTER_MATCH[jobFilter]);
+  const JOB_FILTER_COUNT: Record<JobFilter, number> = {
+    all: pendingJobs.length,
+    pending: awaitingReview,
+    live: liveJobs.length,
+    expired: expiredJobs,
+    closed: rejectedOrClosed,
+  };
   // Unique employers = distinct account (fall back to company name for legacy rows)
   const employers = new Set(pendingJobs.map((j) => j.userId ?? j.company)).size;
   const newJobs7 = pendingJobs.filter((j) => daysAgo(j.createdAt) <= 7).length;
@@ -197,7 +238,8 @@ export default async function AdminPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
+      <AdminNav current="dashboard" />
+      <h1 className="mt-6 text-2xl font-bold text-slate-900">Admin Dashboard</h1>
       <p className="mt-1 text-sm text-slate-500">
         Business overview — listings, applicants, matching and revenue.
       </p>
@@ -357,6 +399,22 @@ export default async function AdminPage() {
       <h2 className="mt-10 text-lg font-bold text-slate-900">
         Job Submissions — Review before publishing
       </h2>
+      <nav className="mt-3 flex flex-wrap gap-2 text-xs">
+        {JOB_FILTERS.map((f) => (
+          <Link
+            key={f}
+            href={f === "all" ? "/admin" : `/admin?jobs=${f}`}
+            scroll={false}
+            className={`rounded-full px-3 py-1 font-medium capitalize ring-1 ${
+              jobFilter === f
+                ? "bg-slate-900 text-white ring-slate-900"
+                : "bg-white text-slate-600 ring-slate-300 hover:bg-slate-50"
+            }`}
+          >
+            {f === "closed" ? "Closed / rejected" : f} ({JOB_FILTER_COUNT[f]})
+          </Link>
+        ))}
+      </nav>
       <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">
           <thead className="bg-slate-50 text-slate-500">
@@ -368,10 +426,17 @@ export default async function AdminPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {pendingJobs.length === 0 ? (
-              <EmptyRow span={4} text="No job submissions yet." />
+            {shownJobs.length === 0 ? (
+              <EmptyRow
+                span={4}
+                text={
+                  pendingJobs.length === 0
+                    ? "No job submissions yet."
+                    : "Nothing in this group."
+                }
+              />
             ) : (
-              pendingJobs.map((job) => (
+              shownJobs.map((job) => (
                 <tr key={job.id} className="align-top hover:bg-slate-50">
                   <td className="px-4 py-3">
                     <p className="font-medium text-slate-900">{job.title}</p>
@@ -400,6 +465,14 @@ export default async function AdminPage() {
                   </td>
                   <td className="hidden px-4 py-3 text-slate-600 sm:table-cell">
                     <p>{job.email}</p>
+                    {job.userId && (
+                      <Link
+                        href={`/admin/accounts?q=${encodeURIComponent(job.userId)}`}
+                        className="text-xs font-medium text-cyan-700 hover:text-cyan-800"
+                      >
+                        View account
+                      </Link>
+                    )}
                     {(() => {
                       const p = job.userId ? profiles.get(job.userId) : undefined;
                       if (!p) {
@@ -476,6 +549,16 @@ export default async function AdminPage() {
                         ? "expired"
                         : job.status}
                     </span>
+                    {job.status === "approved" && job.expiresAt && (
+                      <p className="mt-1 text-xs text-slate-400">
+                        {isLive(job) ? "until " : "ended "}
+                        {new Date(job.expiresAt).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          timeZone: "Pacific/Guam",
+                        })}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {/* There is no refund flow, so the reviewer has to know

@@ -1,18 +1,20 @@
-// Protects the Admin dashboard and admin APIs with HTTP Basic Auth.
+// Protects the Admin dashboard and admin APIs.
 //
 // The Admin area shows applicant personal information, so it must never be
-// publicly accessible in production. This proxy challenges every request to
-// /admin and /api/admin/* for a password before the page/route runs.
+// publicly accessible in production. This proxy checks every request to
+// /admin and /api/admin/* for the owner's login cookie before the page/route
+// runs. (In Next.js 16 the request-interception file is called "proxy";
+// earlier versions called the same thing "middleware".)
 //
-// (In Next.js 16 the request-interception file is called "proxy"; earlier
-// versions called the same thing "middleware".)
+// Until 2026-10-16 this was HTTP Basic Auth, which a browser cannot log out
+// of — see lib/admin-session.ts for the cookie that replaced it.
 //
 // Configuration (Vercel env var):
-//   ADMIN_PASSWORD — the password the owner types to log in. Username is ignored
-//                    (type anything), so the owner only remembers one secret.
+//   ADMIN_PASSWORD — the password the owner types at /admin/login. It also
+//                    signs the login cookie, so changing it logs everyone out.
 //
 // Fail-safe behavior:
-//   • Production with ADMIN_PASSWORD set     → must enter the correct password.
+//   • Production with ADMIN_PASSWORD set     → must log in at /admin/login.
 //   • Production with ADMIN_PASSWORD MISSING → access is DENIED (locked shut),
 //                                              so private data is never exposed
 //                                              by a forgotten env var.
@@ -20,74 +22,53 @@
 //                                              so the owner can work locally.
 
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  ADMIN_COOKIE,
+  adminAuthDisabled,
+  adminPassword,
+  verifyAdminToken,
+} from "@/lib/admin-session";
 
 export const config = {
   // Only run on the Admin page and admin APIs.
   matcher: ["/admin/:path*", "/api/admin/:path*"],
 };
 
-function unauthorized(): NextResponse {
-  return new NextResponse("Authentication required.", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="Guam Job Listings Admin", charset="UTF-8"',
-    },
-  });
-}
+// The two doors that must open without a session: the form and its handler.
+const PUBLIC_PATHS = new Set(["/admin/login", "/api/admin/login"]);
 
-export function proxy(request: NextRequest) {
-  // Local development convenience: skip auth so `npm run dev` admin works.
-  if (process.env.NODE_ENV === "development") {
+export async function proxy(request: NextRequest) {
+  if (adminAuthDisabled()) {
     return NextResponse.next();
   }
 
-  const expected = process.env.ADMIN_PASSWORD;
+  const password = adminPassword();
 
   // Fail closed: if no password is configured in production, deny access
   // rather than exposing applicant data.
-  if (!expected) {
+  if (!password) {
     return new NextResponse(
       "Admin access is not configured. Set ADMIN_PASSWORD.",
       { status: 503 },
     );
   }
 
-  const header = request.headers.get("authorization");
-  if (!header || !header.startsWith("Basic ")) {
-    return unauthorized();
+  const { pathname, search } = request.nextUrl;
+  if (PUBLIC_PATHS.has(pathname)) {
+    return NextResponse.next();
   }
 
-  // atob() hands back one character per BYTE, so a non-ASCII password arrives
-  // as mojibake and never matches: "Iggy1010！" (full-width ！, 3 bytes in
-  // UTF-8) decoded to 11 characters against an expected 9 and locked the owner
-  // out. We advertise charset="UTF-8" in the challenge above, so decode the
-  // bytes as UTF-8 rather than assuming the password is ASCII.
-  let decoded = "";
-  try {
-    const bytes = Uint8Array.from(atob(header.slice("Basic ".length)), (c) =>
-      c.charCodeAt(0),
-    );
-    decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-  } catch {
-    return unauthorized();
+  const token = request.cookies.get(ADMIN_COOKIE)?.value;
+  if (await verifyAdminToken(token, password)) {
+    return NextResponse.next();
   }
 
-  // Format is "username:password" — username is ignored, only the password matters.
-  const password = decoded.slice(decoded.indexOf(":") + 1);
-
-  if (!timingSafeEqual(password, expected)) {
-    return unauthorized();
+  // An API call answers 401 (the screen that made it shows "log in again");
+  // a page sends the owner to the login form and back here afterwards.
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Please log in again." }, { status: 401 });
   }
-
-  return NextResponse.next();
-}
-
-// Constant-time string comparison to avoid leaking the password via timing.
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let mismatch = 0;
-  for (let i = 0; i < a.length; i++) {
-    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  return mismatch === 0;
+  const login = new URL("/admin/login", request.url);
+  login.searchParams.set("next", pathname + search);
+  return NextResponse.redirect(login);
 }

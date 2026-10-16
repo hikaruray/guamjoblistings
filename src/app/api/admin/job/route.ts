@@ -1,6 +1,12 @@
 import { Resend } from "resend";
-import { getJobById, setJobStatus, LISTING_DAYS } from "@/lib/store";
+import {
+  getJobById,
+  setJobStatus,
+  renewJobListing,
+  LISTING_DAYS,
+} from "@/lib/store";
 import { FROM_EMAIL, SITE_URL } from "@/lib/config";
+import { adminUnauthorized, isAdmin } from "@/lib/admin-session";
 
 // Approve or reject a pending job submission.
 //
@@ -11,9 +17,12 @@ import { FROM_EMAIL, SITE_URL } from "@/lib/config";
 // the next reader an admin endpoint is unguarded is worse than no comment —
 // verified 2026-08-29: an unauthenticated POST here answers 401.)
 export async function POST(request: Request) {
+  // Checked here as well as in proxy.ts — see lib/admin-session.ts.
+  if (!(await isAdmin())) return adminUnauthorized();
+
   let body: {
     id?: string;
-    action?: "approve" | "reject" | "unpublish";
+    action?: "approve" | "reject" | "unpublish" | "renew";
     rejectionReason?: string;
   };
   try {
@@ -23,7 +32,7 @@ export async function POST(request: Request) {
   }
 
   const { id, action, rejectionReason } = body;
-  const ACTIONS = ["approve", "reject", "unpublish"] as const;
+  const ACTIONS = ["approve", "reject", "unpublish", "renew"] as const;
   if (!id || !action || !ACTIONS.includes(action)) {
     return Response.json({ error: "Bad parameters." }, { status: 400 });
   }
@@ -53,6 +62,31 @@ export async function POST(request: Request) {
       { error: "Only a live listing can be taken down." },
       { status: 409 },
     );
+  }
+
+  // Renew: the same free LISTING_DAYS window the employer can take from
+  // their own dashboard, pressed on their behalf — e.g. an employer whose
+  // deadline is after the expiry, which on 2026-10-02 had to be done by editing
+  // the database. Only for an approved posting (live or lapsed); a rejected or
+  // closed one goes back through review instead. No email: nothing about the
+  // posting changes except that it stays up.
+  if (action === "renew") {
+    if (!job || job.status !== "approved") {
+      return Response.json(
+        { error: "Only an approved listing can be renewed." },
+        { status: 409 },
+      );
+    }
+    try {
+      const expiresAt = await renewJobListing(id);
+      return Response.json({ ok: true, expiresAt });
+    } catch (err) {
+      console.error("Failed to renew listing:", err);
+      return Response.json(
+        { error: "Could not renew the listing. Please try again." },
+        { status: 503 },
+      );
+    }
   }
 
   const NEXT_STATUS = {

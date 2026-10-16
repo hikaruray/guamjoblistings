@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type Action = "approve" | "reject" | "unpublish";
+type Action = "approve" | "reject" | "unpublish" | "renew";
 
 // Review actions on the Admin screen. Approve / Reject while a submission is
 // waiting, and Unpublish once it is live — without that last one the only way
@@ -43,6 +43,13 @@ export default function JobActions({
         setErr("Please give a reason — the employer only sees that we took it down if you do.");
         return;
       }
+    }
+
+    if (
+      action === "renew" &&
+      !confirm("Keep this listing up for 10 more days from today? The employer is not emailed.")
+    ) {
+      return;
     }
 
     setBusy(true);
@@ -88,13 +95,22 @@ export default function JobActions({
           </>
         )}
         {status === "approved" && (
-          <button
-            onClick={() => act("unpublish")}
-            disabled={busy}
-            className="rounded-md bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-slate-300 transition hover:bg-slate-100 disabled:opacity-50"
-          >
-            Unpublish
-          </button>
+          <>
+            <button
+              onClick={() => act("renew")}
+              disabled={busy}
+              className="rounded-md bg-cyan-50 px-3 py-1.5 text-xs font-medium text-cyan-700 ring-1 ring-cyan-200 transition hover:bg-cyan-100 disabled:opacity-50"
+            >
+              Renew 10 days
+            </button>
+            <button
+              onClick={() => act("unpublish")}
+              disabled={busy}
+              className="rounded-md bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-slate-300 transition hover:bg-slate-100 disabled:opacity-50"
+            >
+              Unpublish
+            </button>
+          </>
         )}
       </span>
       {err && <span className="text-xs text-rose-600">{err}</span>}

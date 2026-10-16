@@ -1,6 +1,6 @@
 // Lets the reviewer close out a payment whose outcome we could not determine.
 //
-// Authentication is handled in proxy.ts, whose matcher covers /api/admin/*.
+// Authentication: the owner's login cookie, checked in proxy.ts and again below.
 //
 // Why this route exists: capture-order marks an order "unresolved" when the
 // money may have moved without us knowing (a timeout, a PENDING capture, an
@@ -27,8 +27,12 @@ import {
   RESOLVED_NOTE_PREFIX,
 } from "@/lib/store";
 import { reconcilePayment } from "@/lib/reconcile";
+import { adminUnauthorized, isAdmin } from "@/lib/admin-session";
 
 export async function POST(request: Request) {
+  // Checked here as well as in proxy.ts — see lib/admin-session.ts.
+  if (!(await isAdmin())) return adminUnauthorized();
+
   let body: { orderId?: string; resolution?: string; action?: string };
   try {
     body = await request.json();
