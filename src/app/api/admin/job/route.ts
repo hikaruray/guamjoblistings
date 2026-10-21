@@ -120,20 +120,32 @@ export async function POST(request: Request) {
   // LISTING_DAYS, the first email they would ever receive about a posting was
   // "it comes down in three days". DaDeal fixed the same gap in July.
   //
-  // Best-effort: the status change is already committed and is what matters.
-  await notifyEmployer(job, action, rejectionReason ?? null).catch((err) =>
-    console.error("Failed to notify employer of review outcome:", err),
-  );
+  // The status change is already committed and stays; a failed email does not
+  // undo it. But the reviewer has to hear about it — until 2026-10-21 a failed
+  // send looked exactly like a sent one (see notifyEmployer), so an employer
+  // could be rejected or taken down without a word and nobody would know.
+  const mailDelivered = await notifyEmployer(
+    job,
+    action,
+    rejectionReason ?? null,
+  ).catch((err) => {
+    console.error("Failed to notify employer of review outcome:", err);
+    return false;
+  });
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, mailDelivered });
 }
 
+// Returns whether the employer was actually emailed.
 async function notifyEmployer(
   job: Awaited<ReturnType<typeof getJobById>>,
   action: "approve" | "reject" | "unpublish",
   rejectionReason: string | null,
-): Promise<void> {
-  if (!job?.email) return;
+): Promise<boolean> {
+  if (!job?.email) {
+    console.error("[REVIEW OUTCOME NOT EMAILED] no employer address", job?.id);
+    return false;
+  }
 
   const apiKey = process.env.RESEND_API_KEY;
   const { subject, text } =
@@ -204,14 +216,21 @@ async function notifyEmployer(
 
   if (!apiKey) {
     console.log(`[REVIEW OUTCOME — email not configured]\nto=${job.email}\n${subject}\n${text}`);
-    return;
+    return false;
   }
 
+  // Resend never throws on a failed send — a bad key, an unverified domain or
+  // a refused address all come back as `{ error }` (ENGINEERING_LESSONS.md).
   const resend = new Resend(apiKey);
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     from: FROM_EMAIL,
     to: job.email,
     subject,
     text,
   });
+  if (error) {
+    console.error("[REVIEW OUTCOME NOT EMAILED]", { jobId: job.id, subject, error });
+    return false;
+  }
+  return true;
 }

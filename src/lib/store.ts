@@ -926,6 +926,49 @@ export async function listAuthAccounts(): Promise<AuthAccount[]> {
   return out;
 }
 
+// One sign-in account by id, or null if there is no such account.
+export async function getAuthAccount(userId: string): Promise<AuthAccount | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  // getUserById throws (rather than returning an error) on a non-UUID; that is
+  // "no such account", not a storage failure.
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+    return null;
+  }
+  const { data, error } = await supabase.auth.admin.getUserById(userId);
+  if (error || !data?.user) return null;
+  const u = data.user;
+  return {
+    id: u.id,
+    email: u.email ?? "",
+    createdAt: u.created_at,
+    emailConfirmedAt: u.email_confirmed_at ?? null,
+    lastSignInAt: u.last_sign_in_at ?? null,
+  };
+}
+
+// Insert-only counterpart of saveEmployerProfile, for callers that must never
+// replace an existing row. The primary key on user_id makes "only if absent"
+// atomic: a second insert for the same user fails with 23505 instead of
+// racing a separate existence check. Returns false when a row already existed.
+export async function createEmployerProfileIfAbsent(
+  profile: EmployerProfile,
+): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase) return false;
+
+  const { error } = await supabase.from("employer_profiles").insert({
+    user_id: profile.userId,
+    email: profile.email,
+    contact_name: profile.contactName,
+    url: profile.url,
+    phone: profile.phone,
+  });
+  if (error?.code === "23505") return false;
+  if (error) throw new Error(`Failed to save employer profile: ${error.message}`);
+  return true;
+}
+
 export async function saveEmployerProfile(
   profile: EmployerProfile,
 ): Promise<boolean> {

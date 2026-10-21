@@ -65,6 +65,16 @@ export default function JobActions({
         setErr(data.error ?? "Something went wrong. Please try again.");
         return;
       }
+      // The listing changed; the email telling the employer may not have gone.
+      // An alert, not the red note, because refresh() redraws this row.
+      const data = (await res.json().catch(() => ({}))) as {
+        mailDelivered?: boolean;
+      };
+      if (data.mailDelivered === false) {
+        alert(
+          "Done — but the email to the employer could not be sent.\nPlease contact them directly (and check Resend if this keeps happening).",
+        );
+      }
       router.refresh();
     } catch {
       setErr("Network error. Please try again.");
