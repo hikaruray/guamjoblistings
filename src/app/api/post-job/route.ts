@@ -1,5 +1,5 @@
-import { Resend } from "resend";
-import { FROM_EMAIL, OWNER_COPY_EMAIL, SITE_URL } from "@/lib/config";
+import { OWNER_COPY_EMAIL, SITE_URL } from "@/lib/config";
+import { sendMail } from "@/lib/email";
 import { addPendingJob, getEmployerProfile } from "@/lib/store";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
 
@@ -96,21 +96,26 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, delivered: false });
   }
 
-  try {
-    const resend = new Resend(apiKey);
-    await resend.emails.send({
-      from: FROM_EMAIL,
-      to: OWNER_COPY_EMAIL, // owner reviews and approves before it goes live
-      replyTo: email,
-      subject,
-      text,
-    });
-    return Response.json({ ok: true, delivered: true });
-  } catch (err) {
-    console.error("Failed to send job submission email:", err);
-    return Response.json(
-      { error: "Could not submit your job. Please try again." },
-      { status: 500 },
+  // The posting is saved by this point, and that is the submission; this email
+  // only tells the reviewer it is waiting. Until 2026-10-21 a send that threw
+  // answered 500 "Could not submit your job. Please try again." for a posting
+  // already in the queue — the contradiction /api/apply used to have, and
+  // following its advice files the posting twice — while a send that failed
+  // without throwing, which is how Resend fails (lib/email.ts), answered
+  // delivered:true. Now the employer is told it was received, because it was.
+  // A missed reviewer email is caught by the twice-daily pending-review cron,
+  // which lists every posting pending for 3+ hours — inside the 24 hours the
+  // form promises — so the employer has nothing to do about it.
+  const delivered = await sendMail({
+    to: OWNER_COPY_EMAIL, // owner reviews and approves before it goes live
+    replyTo: email,
+    subject,
+    text,
+  });
+  if (!delivered) {
+    console.error(
+      `[JOB SUBMISSION NOT EMAILED] "${title}" — ${company}: saved as pending; the pending-review cron will list it.`,
     );
   }
+  return Response.json({ ok: true, delivered });
 }

@@ -60,9 +60,11 @@ export default function ApplyForm({
           <p className="mt-2 text-slate-600">
             Your application for <strong>{jobTitle}</strong> at{" "}
             <strong>{company}</strong> has been submitted
+            {/* The form below promises a copy by email, so when it did not go,
+                say so rather than leave them waiting for it. */}
             {copySent
               ? " — we've emailed you a copy for your records."
-              : ". You can see it any time on your applications page."}
+              : ". We couldn't email you a copy this time, but nothing is lost — it's on your applications page any time."}
           </p>
           <p className="mt-2 text-sm text-slate-500">
             {company} will contact you directly if you&apos;re a match.

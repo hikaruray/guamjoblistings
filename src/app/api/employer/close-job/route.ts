@@ -1,7 +1,7 @@
-import { Resend } from "resend";
 import { getJobById, renewJobListing, setJobStatus } from "@/lib/store";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
-import { FROM_EMAIL, OWNER_COPY_EMAIL, SITE_URL } from "@/lib/config";
+import { OWNER_COPY_EMAIL, SITE_URL } from "@/lib/config";
+import { sendMail } from "@/lib/email";
 
 type Action = "close" | "reopen" | "renew";
 const ACTIONS: Action[] = ["close", "reopen", "renew"];
@@ -77,11 +77,20 @@ export async function POST(request: Request) {
   // event and deserves the same email. The employer gets a line too, because
   // "reopened" does not mean "live again" and the button alone does not say so.
   //
-  // Best-effort on purpose: the status change is committed and is what matters.
+  // Best-effort on purpose: the status change is committed and is what matters,
+  // and a failed email does not undo it. The result is still reported, because
+  // until 2026-10-21 a failed send looked exactly like a sent one (lib/email.ts).
+  // If the reviewer's copy fails, the twice-daily pending-review cron lists the
+  // posting anyway — it is pending — so the log line is enough there. The
+  // employer's copy only repeats what the dashboard has just told them.
   if (action === "reopen") {
-    await notifyReopened(job, id).catch((err) =>
-      console.error("Failed to notify of reopened listing:", err),
+    // Without auth (local dev) the ownership check above never loaded the
+    // posting, and the notice went out as "A listing" with no employer copy.
+    const notified = await notifyReopened(
+      job ?? (await getJobById(id).catch(() => null)),
+      id,
     );
+    return Response.json({ ok: true, ...notified });
   }
 
   return Response.json({ ok: true });
@@ -90,8 +99,7 @@ export async function POST(request: Request) {
 async function notifyReopened(
   job: Awaited<ReturnType<typeof getJobById>>,
   id: string,
-): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
+): Promise<{ reviewerNotified: boolean; employerNotified: boolean }> {
   const title = job?.title ?? "A listing";
   const company = job?.company ?? "";
 
@@ -122,38 +130,28 @@ async function notifyReopened(
     `— Guam Job Listings`,
   ].join("\n");
 
-  if (!apiKey) {
-    console.log(
-      `[LISTING REOPENED — email not configured] job=${id}\n${reviewerText}`,
-    );
-    return;
-  }
-
   // Independent sends — see the same note in update-job. In sequence, a failure
   // reaching the reviewer also silently cancelled the employer's copy.
-  const resend = new Resend(apiKey);
-  const sends = [
-    resend.emails.send({
-      from: FROM_EMAIL,
+  const [reviewerNotified, employerNotified] = await Promise.all([
+    sendMail({
       to: OWNER_COPY_EMAIL,
       replyTo: job?.email,
       subject: `Back for review: ${title}${company ? ` — ${company}` : ""}`,
       text: reviewerText,
     }),
-  ];
-  if (job?.email) {
-    sends.push(
-      resend.emails.send({
-        from: FROM_EMAIL,
-        to: job.email,
-        subject: `"${title}" is back with us for review`,
-        text: employerText,
-      }),
-    );
+    job?.email
+      ? sendMail({
+          to: job.email,
+          subject: `"${title}" is back with us for review`,
+          text: employerText,
+        })
+      : false,
+  ]);
+  if (!reviewerNotified || !employerNotified) {
+    console.error(`[REOPEN NOTICE NOT DELIVERED] job=${id}`, {
+      reviewerNotified,
+      employerNotified,
+    });
   }
-  for (const r of await Promise.allSettled(sends)) {
-    if (r.status === "rejected") {
-      console.error(`[REOPEN NOTICE NOT DELIVERED] job=${id}`, r.reason);
-    }
-  }
+  return { reviewerNotified, employerNotified };
 }

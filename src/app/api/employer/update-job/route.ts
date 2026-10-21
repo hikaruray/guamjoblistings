@@ -1,7 +1,7 @@
-import { Resend } from "resend";
 import { getJobById, updateJob } from "@/lib/store";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
-import { FROM_EMAIL, OWNER_COPY_EMAIL, SITE_URL } from "@/lib/config";
+import { OWNER_COPY_EMAIL, SITE_URL } from "@/lib/config";
+import { sendMail } from "@/lib/email";
 
 // Update a job the signed-in employer owns. Edits go back to review (pending),
 // so changed content is re-checked before it's public again.
@@ -76,12 +76,14 @@ export async function POST(request: Request) {
   // closed on 2026-09-04; this is the same event arriving through a different
   // door, and it is the door the rejection email tells employers to use.
   //
-  // Best-effort: the edit is saved and that is what matters.
-  await notifyResubmitted(id, title, company, email, wasLive).catch((err) =>
-    console.error("Failed to notify of edited listing:", err),
-  );
+  // Best-effort: the edit is saved and that is what matters, and a failed email
+  // does not undo it. The result is still reported, because until 2026-10-21 a
+  // failed send looked exactly like a sent one (lib/email.ts). A missed
+  // reviewer copy is caught by the twice-daily pending-review cron; the
+  // employer's copy only repeats what the "Changes saved" screen says.
+  const notified = await notifyResubmitted(id, title, company, email, wasLive);
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, ...notified });
 }
 
 async function notifyResubmitted(
@@ -90,9 +92,7 @@ async function notifyResubmitted(
   company: string,
   contactEmail: string,
   wasLive: boolean,
-): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-
+): Promise<{ reviewerNotified: boolean; employerNotified: boolean }> {
   const reviewerText = [
     `An employer has edited a posting, so it is back in the review queue.`,
     ``,
@@ -120,35 +120,27 @@ async function notifyResubmitted(
     `— Guam Job Listings`,
   ].join("\n");
 
-  if (!apiKey) {
-    console.log(
-      `[LISTING EDITED — email not configured] job=${id}\n${reviewerText}`,
-    );
-    return;
-  }
-
   // Independent sends. Awaiting them in sequence meant one failure took the
   // other with it — and the one that matters most, the reviewer being told
   // something is waiting, was first in line.
-  const resend = new Resend(apiKey);
-  const results = await Promise.allSettled([
-    resend.emails.send({
-      from: FROM_EMAIL,
+  const [reviewerNotified, employerNotified] = await Promise.all([
+    sendMail({
       to: OWNER_COPY_EMAIL,
       replyTo: contactEmail,
       subject: `Back for review (edited): ${title} — ${company}`,
       text: reviewerText,
     }),
-    resend.emails.send({
-      from: FROM_EMAIL,
+    sendMail({
       to: contactEmail,
       subject: `"${title}" is back with us for review`,
       text: employerText,
     }),
   ]);
-  for (const r of results) {
-    if (r.status === "rejected") {
-      console.error(`[EDIT NOTICE NOT DELIVERED] job=${id}`, r.reason);
-    }
+  if (!reviewerNotified || !employerNotified) {
+    console.error(`[EDIT NOTICE NOT DELIVERED] job=${id}`, {
+      reviewerNotified,
+      employerNotified,
+    });
   }
+  return { reviewerNotified, employerNotified };
 }

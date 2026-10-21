@@ -1,6 +1,6 @@
-import { Resend } from "resend";
 import { getPublicJob } from "@/lib/public-jobs";
-import { FROM_EMAIL, OWNER_COPY_EMAIL, SITE_URL } from "@/lib/config";
+import { OWNER_COPY_EMAIL, SITE_URL } from "@/lib/config";
+import { sendMail } from "@/lib/email";
 import { addApplication, hasApplied } from "@/lib/store";
 import { getSessionUser, isAuthConfigured } from "@/lib/supabase-server";
 
@@ -159,13 +159,13 @@ export async function POST(request: Request) {
   // application that had in fact been saved both times. Note also that the
   // branch above, for when RESEND_API_KEY is unset, already returns ok with
   // delivered:false; this path simply now agrees with it.
-  const resend = new Resend(apiKey);
-  let delivered = false;
-  let copySent = false;
-
-  try {
-    await resend.emails.send({
-      from: FROM_EMAIL,
+  //
+  // Until 2026-10-21 both sends sat in try/catch and were counted as sent if
+  // they did not throw — but Resend never throws (lib/email.ts), so a failed
+  // send still answered delivered and copySent true, and the line below that
+  // tells the owner to step in could never fire.
+  const [delivered, copySent] = await Promise.all([
+    sendMail({
       to: job.contactEmail, // employer is told an application arrived
       bcc: OWNER_COPY_EMAIL, // owner keeps a record that it happened
       // No replyTo. It used to carry the applicant's address so the employer
@@ -174,27 +174,17 @@ export async function POST(request: Request) {
       // out of the body. They reply from the dashboard instead.
       subject,
       text,
-    });
-    delivered = true;
-  } catch (err) {
+    }),
+    sendMail({ to: email, subject: applicantSubject, text: applicantText }),
+  ]);
+
+  if (!delivered) {
     // Loud on purpose: this is the owner's only signal that an application is
-    // sitting in the admin dashboard which nobody has been told about.
+    // sitting in the admin dashboard which nobody has been told about — the
+    // owner's BCC failed along with the employer's copy.
     console.error(
       `[APPLICATION NOT DELIVERED] job=${job.id} "${job.title}" applicant=${email} — the application IS saved; notify the employer manually.`,
-      err,
     );
-  }
-
-  try {
-    await resend.emails.send({
-      from: FROM_EMAIL,
-      to: email,
-      subject: applicantSubject,
-      text: applicantText,
-    });
-    copySent = true;
-  } catch (err) {
-    console.error("Failed to send applicant confirmation:", err);
   }
 
   return Response.json({ ok: true, delivered, copySent });
